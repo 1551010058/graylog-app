@@ -98,3 +98,12 @@ Khi hỏi tiếp trong hội thoại, có thể đính kèm hình hoặc file: b
 - Giao diện là một server chỉ nghe trên `127.0.0.1`, cổng ngẫu nhiên, đường dẫn có mã ngẫu nhiên đổi mỗi lần mở.
 - Nếu Graylog chạy `http://`, tài khoản và mật khẩu đi trên mạng không mã hoá — nên dùng https hoặc VPN.
 - `~/.config/gl/` chứa địa chỉ nội bộ, lịch sử tìm kiếm và hội thoại AI; không chia sẻ thư mục này.
+
+## 6. Cập nhật
+
+Lúc mở và mỗi 6 giờ, app hỏi GitHub (`api.github.com`) xem repo có bản mới hơn bản đang chạy không. Có thì góc dưới bên phải hiện thẻ "Có bản mới"; bấm "Cập nhật" để app tự tải, cài và mở lại. Việc này cần lệnh [`uv`](https://docs.astral.sh/uv/); không có thì làm tay:
+
+```
+uv tool install --reinstall git+https://github.com/1551010058/graylog-app
+graylog-app
+```

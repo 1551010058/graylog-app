@@ -3,7 +3,7 @@
 # Chạy: gl-ui.py <đường dẫn gl> app — Graylog.app khởi động, in URL ra stdout, thoát khi app thoát.
 from concurrent.futures import ThreadPoolExecutor
 import glob, threading
-import datetime, html, http.server, json, os, re, secrets, subprocess, sys, time, urllib.parse
+import datetime, html, http.server, json, os, re, secrets, subprocess, sys, time, urllib.parse, urllib.request
 
 WIN = os.name == 'nt'
 if WIN and not sys.flags.utf8_mode:   # Windows mặc định không phải UTF-8 -> chạy lại ở chế độ UTF-8
@@ -900,11 +900,36 @@ try{o.textContent=await(await fetch('%s/ai',{method:'POST',body:new URLSearchPar
         E(str(d.get('cmd', ''))), B, B)
 
 
+UPD = {}   # có bản mới trên GitHub: {'d': ngày, 'm': dòng đầu commit}
+
+
+def check_update():   # commit mới nhất của graylog_app/ trên GitHub mới hơn file đang chạy = có bản mới. Lỗi mạng thì im lặng.
+    here = os.path.dirname(os.path.abspath(__file__))
+    while True:
+        try:
+            c = json.load(urllib.request.urlopen(urllib.request.Request(
+                'https://api.github.com/repos/1551010058/graylog-app/commits?path=graylog_app&per_page=1', headers={'User-Agent': 'graylog-app'}), timeout=8))[0]['commit']
+            t = datetime.datetime.strptime(c['committer']['date'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc)
+            if t.timestamp() > max(os.path.getmtime(os.path.join(here, f)) for f in ('gl.py', 'gl-ui.py')):
+                UPD.update(d=t.astimezone().strftime('%d/%m'), m=c['message'].split('\n')[0][:90])
+        except Exception: pass
+        time.sleep(6 * 3600)   # app mở nhiều ngày vẫn thấy bản mới
+
+
+def upd():
+    return """<style>#upd{position:fixed;right:16px;bottom:16px;z-index:40;display:flex;gap:14px;align-items:center;max-width:min(440px,90vw);padding:12px 14px 12px 16px;border:1px solid #8886;border-radius:14px;background:Canvas;color:CanvasText;box-shadow:0 8px 24px #0005;font:14px/1.4 -apple-system,sans-serif}
+#upd b{display:block}#upd small{opacity:.65;white-space:pre-wrap;user-select:text;-webkit-user-select:text}#upd button{font:inherit;font-weight:600;padding:7px 14px;border-radius:18px;cursor:pointer;white-space:nowrap}#upd .x{border:0;background:none;color:inherit;opacity:.5;padding:0 2px;font-weight:400}#upn{position:fixed;top:9px;right:13px;z-index:31;width:11px;height:11px;border-radius:50%%;background:#e5484d;border:2px solid Canvas;pointer-events:none}</style>
+<i id=upn title="Có bản mới"></i><div id=upd hidden><div><b>Có bản mới</b><small id=upm>%s · %s</small></div><button class=p id=upb type=button>Cập nhật</button><button class=x id=upx type=button title="Để sau">×</button></div>
+<script>(()=>{const $=i=>document.getElementById(i),u=$('upd');u.hidden=!!sessionStorage.upx;$('upx').onclick=()=>{sessionStorage.upx=1;u.hidden=true};$('cfg').addEventListener('click',()=>{u.hidden=false});
+$('upb').onclick=async()=>{$('upb').disabled=true;$('upm').textContent='Đang tải bản mới, chờ chút…';let r='';try{r=await(await fetch('%s/update',{method:'POST'})).text()}catch(_){}
+if(r.trim()=='OK'){$('upm').textContent='Xong. App đang mở lại; nếu cửa sổ này còn thì đóng nó đi.';$('upb').hidden=true}else{$('upm').textContent=r||'Chưa cập nhật được.';$('upb').disabled=false}}})()</script>""" % (E(UPD['d']), E(UPD['m']), B)
+
+
 class H(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 
     def page(self, body, code=200):
-        if body.startswith(CSS): body += gear()   # trang đầy đủ nào cũng có nút bánh răng
+        if body.startswith(CSS): body += gear() + (upd() if UPD else '')   # trang đầy đủ nào cũng có nút bánh răng, và thẻ "Có bản mới" nếu có
         b = body.encode()
         self.send_response(code); self.send_header('Content-Type', 'text/html; charset=utf-8')
         self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
@@ -937,6 +962,7 @@ class H(http.server.BaseHTTPRequestHandler):
         names = [p[0] for p in partners()]
         if u.path == B + '/save':
             return self.go(msg=gl('_save', g('old'), g('name'), g('url'), g('user'), stdin=f.get('pw', [''])[0])[1])
+        if u.path == B + '/update': return self.page(gl('_update')[1])
         if u.path == B + '/aistat': return self.page(gl('_aistat')[1])
         if u.path == B + '/ai': return self.page(gl('_ai', g('p'), 'check', stdin=g('cmd'))[1])   # nút bánh răng: lưu rồi hỏi thử một câu
         if u.path == B + '/test': return self.page(gl('_test', g('old'), g('url'), g('user'), stdin=f.get('pw', [''])[0])[1])
@@ -1006,6 +1032,7 @@ class H(http.server.BaseHTTPRequestHandler):
         self.page('', 404)
 
 
+threading.Thread(target=check_update, daemon=True).start()
 srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), H)
 URL = 'http://127.0.0.1:%d%s' % (srv.server_address[1], B)
 if sys.stdout: print(URL, flush=True)

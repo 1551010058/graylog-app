@@ -588,6 +588,18 @@ def main(a):
         print('Đã lưu. %s dùng được, trả lời: %s' % (AIS[a[1]], ans.strip()[:200]) if rc == 0 else 'Đã lưu, nhưng %s chưa dùng được (mã %d):\n%s\n%s%s' % (
             AIS[a[1]], rc, ans[:500], err[-1500:], '\n\nNếu lỗi là do chưa đăng nhập:\n' + ai_help(a[1]) if rc != 127 and a[1] in HELP else ''))
         return rc
+    elif c == '_update':   # thẻ "Có bản mới": kéo code mới từ GitHub bằng uv rồi chạy graylog-app (chép file, build lại nếu cần, mở lại app)
+        path = login_path(); uv = shutil.which('uv', path=path); env = dict(os.environ, PATH=path); src = 'git+https://github.com/1551010058/graylog-app'
+        hand = 'Mở Terminal chạy:\n  uv tool install --reinstall %s\n  graylog-app' % src
+        if not uv: print('Máy này chưa có lệnh uv (https://docs.astral.sh/uv/). Cài uv rồi ' + hand[0].lower() + hand[1:]); return 1
+        r = subprocess.run([uv, 'tool', 'install', '--reinstall', src], capture_output=True, text=True, env=env, **NOWIN)
+        try: bin_ = subprocess.run([uv, 'tool', 'dir', '--bin'], capture_output=True, text=True, env=env, **NOWIN).stdout.strip()
+        except OSError: bin_ = ''
+        exe = shutil.which('graylog-app', path=bin_ + os.pathsep + path)
+        if r.returncode or not exe: print('Chưa cập nhật được. %s\n\n%s' % (hand, (r.stdout + r.stderr)[-800:])); return 1
+        subprocess.Popen([exe], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
+                         **({'creationflags': 0x08000000 | 0x00000200} if WIN else {'start_new_session': True}))
+        print('OK')
     elif c == '_aistat':   # hộp Cài đặt AI: lệnh của từng nhà đã cài chưa (không biết được đã đăng nhập chưa, phải bấm kiểm tra) + hướng dẫn
         path = login_path(); print(json.dumps({p: [bool(shutil.which(p, path=path)) if p in HELP else None, ai_help(p)] for p in AIS}))
     elif c == '_stop':   # _stop <id câu hỏi> — dừng AI đang trả lời câu đó
