@@ -59,7 +59,16 @@ Số liệu do Graylog đếm trên toàn bộ phạm vi đang chọn, không ph
 - **Theo API**: bấm tiêu đề cột để sắp xếp; bấm thêm cột khác để sắp xếp tiếp trên kết quả đang có (số nhỏ cạnh mũi tên là thứ tự bấm); "Bỏ sắp xếp" để về mặc định. Bấm tên API hoặc một con số để mở các log tương ứng, rồi "← Quay lại Dashboard" để về đúng trạng thái trước đó.
 - **Ngưỡng chậm**: chọn sẵn từ 200 ms đến 10 giây, hoặc tự nhập số ms. Cột cuối đếm số call có `duration_ms` từ ngưỡng đó trở lên.
 
-Dashboard cần log có các field `url_path`, `api_status`, `application`, `duration_ms`.
+Dashboard đếm theo các field `api_status`, `url_path`, `application`, `duration_ms`. Nếu phạm vi đang xem không có log nào mang `api_status`, tool tự dò field khác đang có log để thay:
+
+| Vai | Thứ tự dò |
+|---|---|
+| Status | `http_status`, `http_status_code`, `status_code`, `http_response_code`, `response_code`, `response_status`, `status`, `level` |
+| API | `request_path`, `http_path`, `path`, `uri`, `request_uri`, `url`, `endpoint`, `logger_name`, `source` |
+| Application | `app`, `service`, `service_name`, `app_name`, `container_name`, `facility`, `source` |
+| Thời gian xử lý | `took_ms`, `elapsed_ms`, `response_time_ms`, `duration`, `response_time`, `request_time` |
+
+Khi đó status được gộp về ba nhóm: mã HTTP 5xx (hoặc `level` 0–3) là Error, 4xx (hoặc `level` 4, tức cảnh báo) là Business error, còn lại là Success. Graylog chỉ có `level` và `source` thì Dashboard thành bảng đếm log theo mức độ và theo máy gửi log.
 
 "Làm mới" tải lại số liệu; "Tự động" làm mới theo chu kỳ.
 

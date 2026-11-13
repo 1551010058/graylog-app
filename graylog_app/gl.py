@@ -160,6 +160,17 @@ def api(name, path, params=None, data=None):   # -> bytes JSON từ Graylog củ
     except (OSError, ValueError): sys.exit(1)
 
 
+# Dashboard: Graylog nào cũng đặt tên field khác nhau -> mỗi vai lấy field đầu tiên trong danh sách mà phạm vi đang xem thật sự có log
+CAND = {'st': ['api_status', 'http_status', 'http_status_code', 'status_code', 'http_response_code', 'response_code', 'response_status', 'status', 'level'],
+        'api': ['url_path', 'request_path', 'http_path', 'path', 'uri', 'request_uri', 'url', 'endpoint', 'logger_name', 'source'],
+        'app': ['application', 'app', 'service', 'service_name', 'app_name', 'container_name', 'facility', 'source'],
+        'dur': ['duration_ms', 'took_ms', 'elapsed_ms', 'response_time_ms', 'duration', 'response_time', 'request_time']}
+def bucket(f, v):   # giá trị status -> SUCCESS / BUSINESS_ERROR / ERROR: mã HTTP (4xx, 5xx) hoặc level syslog (4 = cảnh báo, <= 3 = lỗi); chữ thì giữ nguyên
+    v = str(v)
+    if f == 'api_status' or not re.fullmatch(r'[0-9]+(\.0)?', v): return v
+    n = int(float(v))
+    if f == 'level': return 'ERROR' if n <= 3 else 'BUSINESS_ERROR' if n == 4 else 'SUCCESS'
+    return 'ERROR' if n >= 500 else 'BUSINESS_ERROR' if n >= 400 else 'SUCCESS'
 def streams(name):   # mỗi dòng "tên   —   id"
     ss = json.loads(api(name, '/api/streams'))['streams']
     return [s['title'] + SEP + s['id'] for s in sorted(ss, key=lambda s: s['title'].lower()) if not s.get('disabled')]
@@ -412,10 +423,9 @@ def main(a):
         if sid: p += [('filter', 'streams:(%s)' % sid.replace(',', ' OR '))]
         sys.stdout.buffer.write(api(name, '/api/search/universal/' + ep, p)); sys.stdout.flush()
     elif c == '_agg':   # _agg <name> <stream id,…|""> <application|""> <số giây | từ~đến UTC> [query] -> JSON đếm log API theo status / api; Graylog tự đếm nên không dính giới hạn 500
-        name, sid, app, tm = a[1:5]; q = '_exists_:api_status' + (' AND (%s)' % a[5] if len(a) > 5 and a[5] else '')
+        name, sid, app, tm = a[1:5]; uq = a[5] if len(a) > 5 and a[5] else ''
         if not ((not sid or re.fullmatch(SIDS, sid)) and (not app or re.fullmatch(APP, app))
                 and (re.fullmatch(r'[0-9]+', tm) or re.fullmatch(r'[0-9T:.Z-]+~[0-9T:.Z-]+', tm))): return 1
-        if app: q = '(%s) AND application:"%s"' % (q, app)
         ms = a[6] if len(a) > 6 and re.fullmatch(r'[1-9][0-9]{0,6}', a[6]) else '1000'
         # duration_ms là keyword nên không avg/p95 được; đếm theo ngưỡng bằng regex, vd >= 500: [5-9][0-9]{2}|[0-9]{4,}
         # >= ms: chính nó | cùng số chữ số, lớn hơn ở vị trí i | nhiều chữ số hơn. vd 750: 750|[8-9][0-9]{2}|7[6-9][0-9]{1}|75[1-9]|[0-9]{4,}
@@ -423,17 +433,42 @@ def main(a):
                                                                for i, d in enumerate(ms) if d < '9'] + ['[0-9]{%d,}' % (k + 1)])
         piv = lambda i, fs, flt='': dict({'id': i, 'type': 'pivot', 'rollup': False, 'column_groups': [], 'sort': [], 'series': [{'type': 'count', 'id': 'n'}],
                                           'row_groups': [{'type': 'values', 'field': x, 'limit': 500} for x in fs]}, **({'filter': {'type': 'query_string', 'query': flt}} if flt else {}))
-        qr = {'id': 'q', 'query': {'type': 'elasticsearch', 'query_string': q},
-              'timerange': dict(zip(('type', 'from', 'to'), ['absolute'] + tm.split('~'))) if '~' in tm else {'type': 'relative', 'range': int(tm)},
-              'search_types': [piv('st', ['api_status']), piv('api', ['url_path', 'api_status']), piv('slow', ['url_path'], slow), piv('app', ['application', 'api_status']), dict(piv('last', ['url_path']), series=[{'type': 'max', 'id': 't', 'field': 'timestamp'}]),
+        def run(q, sts):
+            qr = {'id': 'q', 'query': {'type': 'elasticsearch', 'query_string': q}, 'search_types': sts,
+                  'timerange': dict(zip(('type', 'from', 'to'), ['absolute'] + tm.split('~'))) if '~' in tm else {'type': 'relative', 'range': int(tm)}}
+            if sid: qr['filter'] = {'type': 'or', 'filters': [{'type': 'stream', 'id': i} for i in sid.split(',')]}
+            return json.loads(api(name, '/api/views/search/sync', data=json.dumps({'queries': [qr]}).encode()))['results']['q']
+        def full(F):
+            q = '_exists_:' + F['st'] + (' AND (%s)' % uq if uq else '')
+            if app: q = '(%s) AND %s:"%s"' % (q, F['app'], app)
+            sl = slow if F['dur'] == 'duration_ms' else F['dur'] + ':>=' + ms if F['dur'] else '_exists_:gl_khong_co_field_thoi_gian'
+            return sl, run(q, [piv('st', [F['st']]), piv('api', [F['api'], F['st']]), piv('slow', [F['api']], sl), piv('app', [F['app'], F['st']]), dict(piv('last', [F['api']]), series=[{'type': 'max', 'id': 't', 'field': 'timestamp'}]),
                                dict(piv('time', []), row_groups=[{'type': 'time', 'field': 'timestamp', 'interval': {'type': 'auto', 'scaling': 0.5}}],
-                                    column_groups=[{'type': 'values', 'field': 'api_status', 'limit': 10}])]}
-        if sid: qr['filter'] = {'type': 'or', 'filters': [{'type': 'stream', 'id': i} for i in sid.split(',')]}
-        r = json.loads(api(name, '/api/views/search/sync', data=json.dumps({'queries': [qr]}).encode()))['results']['q']
+                                    column_groups=[{'type': 'values', 'field': F['st'], 'limit': 10}])])
+        F = {k: v[0] for k, v in CAND.items()}; slow, r = full(F)
+        if not r.get('errors') and not r['search_types']['st'].get('rows'):
+            # không có log theo field mặc định -> dò: đếm log có từng field ứng viên trong đúng phạm vi này.
+            # status: field đầu tiên có log; các vai còn lại: field đầu tiên đi kèm status đó ở ít nhất nửa số log (để không chọn field chỉ có ở vài log lẻ)
+            cnt = lambda q, fs: (lambda t: {f: sum(v.get('value') or 0 for x in t.get(f, {}).get('rows', []) for v in x['values']) for f in fs})(
+                run(q, [dict(piv(f, [], '_exists_:' + f), rollup=True) for f in fs]).get('search_types', {}))
+            c = cnt(uq or '*', CAND['st']); st = next((f for f in CAND['st'] if c[f]), '')
+            if st:
+                c = cnt('_exists_:' + st + (' AND (%s)' % uq if uq else ''), sorted({f for k in ('api', 'app', 'dur') for f in CAND[k]})); top = max(c.values())
+                F = dict({k: next((f for f in CAND[k] if c[f] and c[f] * 2 >= top), '' if k == 'dur' else CAND[k][-1]) for k in ('api', 'app', 'dur')}, st=st); slow, r = full(F)
+        fst = F['st']
         if r.get('errors'): return 1
         t = r['search_types']; o = {k: [x['key'] + [x['values'][0]['value']] for x in t[k].get('rows', []) if x['values']] for k in ('st', 'api', 'slow', 'app', 'last')}
         o['time'] = [[x['key'][0], {v['key'][0]: v['value'] for v in x['values'] if len(v['key']) > 1}] for x in t['time'].get('rows', []) if x['key']]
-        o['slowq'] = slow; print(json.dumps(o))
+        if fst != 'api_status':   # status là mã HTTP / level -> gộp về 3 nhóm, kèm câu truy vấn của từng nhóm để bấm vào mở đúng log
+            def merge(rows, n):
+                d = {}
+                for r in rows:
+                    if len(r) == n: k = tuple(r[:-2] + [bucket(fst, r[-2])]); d[k] = d.get(k, 0) + r[-1]   # ponytail: Graylog trả thiếu khoá cho log không có field api/app -> bỏ khỏi bảng, tổng ở phần Status vẫn đủ
+                return [list(k) + [n] for k, n in d.items()]
+            for k in ('st', 'api', 'app'): o[k] = merge(o[k], 2 + (k != 'st'))
+            for x in o['time']: x[1] = dict(merge([[s, n] for s, n in x[1].items()], 2))
+            o['sq'] = dict(zip(('ERROR', 'BUSINESS_ERROR', 'SUCCESS'), (fst + ':' + r for r in (('[0 TO 3]', '4', '[5 TO 7]') if fst == 'level' else ('[500 TO 599]', '[400 TO 499]', '[100 TO 399]')))))
+        o['f'] = F; o['slowq'] = slow; print(json.dumps(o))
     elif c == '_more':   # _more <name> <tid> <câu hỏi> — hỏi tiếp trong một cuộc hội thoại (câu trước phải trả lời xong)
         name, tid, q = a[1:4]; th = os.path.join(ASK, tid + '.thread')
         if not (re.fullmatch(r'[0-9]{8}-[0-9]{6}', tid) and q and os.path.exists(th)): return 1
