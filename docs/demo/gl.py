@@ -18,14 +18,19 @@ if a[0] == '_streams':
 elif a[0] == '_agg':
     apis = [x for x in APIS if not a[3] or x[0] == a[3]]
     api, app, st, slow, last = [], {}, {}, [], []
+    why = {'BUSINESS_ERROR': ['Sản phẩm đã hết hàng', 'Mã giảm giá đã hết hạn', 'Số dư ví không đủ'], 'ERROR': ['Internal error', 'Read timed out']}
+    err, r2 = {}, random.Random(3)   # bộ ngẫu nhiên riêng: không làm lệch các số còn lại
     for i, (sv, _, path, _) in enumerate(apis):
         for s, n in (('SUCCESS', random.randint(40, 900)), ('BUSINESS_ERROR', random.choice([0, 0, 3, 12, 31])), ('ERROR', random.choice([0, 0, 0, 2, 9]))):
             if n: api.append([path, s, n]); app[sv, s] = app.get((sv, s), 0) + n; st[s] = st.get(s, 0) + n
+            for w, k in zip((why.get(s) or [])[i % 2:], (n - n // 3, n // 3)):
+                if k: err.setdefault((s, w), []).append([sv, path, k, (now - datetime.timedelta(seconds=r2.randint(1, 3000))).timestamp() * 1000])
         if i % 2 == 0: slow.append([path, random.randint(1, 40)])
         last.append([path, (now - datetime.timedelta(seconds=random.randint(1, 3000))).timestamp() * 1000])
     time = [[iso(now - datetime.timedelta(seconds=30 * i)), dict((s, max(0, int(n / 120 * random.uniform(.3, 1.9)))) for s, n in st.items())] for i in range(120, 0, -1)]
     print(json.dumps({'st': sorted(st.items(), key=lambda x: -x[1]), 'api': api, 'slow': slow, 'app': [[k[0], k[1], n] for k, n in app.items()],
-                      'last': last, 'time': time, 'slowq': 'duration_ms:>=' + (a[5] or '1000')}))
+                      'last': last, 'time': time, 'slowq': 'duration_ms:>=' + (a[5] or '1000'),
+                      'err': sorted(([k[0], k[1], sum(x[2] for x in v), '"%s"' % k[1], sorted(v, key=lambda x: -x[2])] for k, v in err.items()), key=lambda x: -x[2])}))
 elif a[0] == '_search':
     msgs = []
     for i in range(14):

@@ -79,6 +79,8 @@ Khi đó status được gộp về ba nhóm: mã HTTP 5xx (hoặc `level` 0–3
 
 Cần cài [`claude`](https://claude.com/claude-code) và [`uv`](https://docs.astral.sh/uv/). Bấm "Phân tích với AI" hoặc nút "Phân tích" trên một trace rồi đặt câu hỏi. Nội dung log được gửi lên Claude; số điện thoại, CCCD và các dữ liệu tương tự được che trước khi gửi.
 
+Khi hỏi tiếp trong hội thoại, có thể đính kèm hình hoặc file: bấm 📎, dán hình (Cmd/Ctrl+V) hoặc kéo thả vào ô nhập. Tối đa 5 file mỗi câu, mỗi file 10 MB. File đính kèm được gửi nguyên vẹn lên Claude, không che dữ liệu, và được lưu trong `~/.config/gl/ask/att/` cho tới khi hội thoại hết hạn 30 ngày.
+
 ## 5. Bảo mật
 
 - Mật khẩu chỉ nằm trong Keychain / Credential Manager.

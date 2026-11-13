@@ -85,6 +85,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate {
                  completionHandler done: @escaping () -> Void) {
         let a = NSAlert(); a.messageText = m; a.runModal(); done()
     }
+    // <input type=file> (nút 📎 ở khung chat AI): WKWebView không tự mở hộp chọn file
+    func webView(_ v: WKWebView, runOpenPanelWith p: WKOpenPanelParameters, initiatedByFrame f: WKFrameInfo,
+                 completionHandler done: @escaping ([URL]?) -> Void) {
+        let o = NSOpenPanel(); o.allowsMultipleSelection = p.allowsMultipleSelection
+        done(o.runModal() == .OK ? o.urls : nil)
+    }
 }
 
 let app = NSApplication.shared

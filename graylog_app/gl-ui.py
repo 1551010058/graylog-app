@@ -212,6 +212,8 @@ def prune():
         for f in os.listdir(d):
             p = os.path.join(d, f)
             if re.match(r'\d{8}-\d{6}\.', f) and f.split('.')[0] not in keep and os.path.getmtime(p) < cut: os.remove(p)
+        for f in os.listdir(os.path.join(d, 'att')) if os.path.isdir(os.path.join(d, 'att')) else []:   # file đính kèm của hội thoại đã xoá
+            if f not in keep and os.path.getmtime(os.path.join(d, 'att', f)) < cut: __import__('shutil').rmtree(os.path.join(d, 'att', f), True)
     except OSError: pass
 
 
@@ -755,6 +757,7 @@ body{max-width:900px}
 .ans th,.ans td{border-bottom:1px solid #8884;padding:7px 14px 7px 0;text-align:left;vertical-align:top}.ans th{font-size:12.5px;opacity:.6;font-weight:600;white-space:nowrap}
 .wait{padding:14px 18px}.wait>span{animation:pulse 1.4s infinite}@keyframes pulse{50%{opacity:.45}}.wait small{opacity:.6;margin:0 12px}.stop,.retry{padding:3px 12px;font-size:13px}.ans code.tr{cursor:pointer;text-decoration:underline dotted}
 #f{position:sticky;bottom:0;display:flex;gap:8px;align-items:flex-end;background:Canvas;padding:12px 0 16px;margin-top:24px;border-top:1px solid #8885}
+#f{flex-wrap:wrap}#al{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px}#al:empty{display:none}#al span{border:1px solid #8886;border-radius:14px;padding:3px 6px 3px 12px;font-size:13px}#al b{cursor:pointer;padding:0 6px;opacity:.6}#f.dr textarea{outline:2px dashed #2f6fed}
 #f textarea{flex:1;resize:none;max-height:9em}#f button:disabled{opacity:.45;cursor:default}
 </style><title>Graylog AI — @N@</title>
 <div class=nav><a class=btn href="@FORM@" onclick="if(history.length>1){history.back();return false}">← Quay lại</a><a class=btn id=fw hidden href="javascript:history.forward()">Tới →</a>
@@ -762,10 +765,19 @@ body{max-width:900px}
 @CTX@
 <div id=chat>@ITEMS@</div>
 <form id=f method=post action="@B@/more"><input type=hidden name=name value="@N@"><input type=hidden name=tid value="@TID@">
+<div id=al></div><button type=button id=ab title="Đính kèm hình / file (cũng có thể dán hình hoặc kéo thả file vào ô này). Tối đa 5 file, mỗi file 10 MB. File được gửi nguyên vẹn lên Claude, không che dữ liệu.">📎</button><input type=file id=fi multiple hidden>
 <textarea name=q rows=1 autofocus></textarea><button class=p>Gửi ↑</button></form>@SF@
 <script>
 const S=sessionStorage,fn=()=>+S.fwd||0;addEventListener(`pageshow`,()=>{fw.hidden=!(fn()>0||(window.navigation&&navigation.canGoForward))});addEventListener(`click`,e=>{const a=e.target.closest(`a`);if(!a)return;S.fwd=a.id==`fw`?fn()-1:a.getAttribute(`onclick`)?fn()+1:0},true);addEventListener(`submit`,e=>{if(!e.defaultPrevented)S.fwd=0});
-const chat=document.getElementById('chat'),f=document.getElementById('f'),t=f.q,btn=f.querySelector('button');
+const chat=document.getElementById('chat'),f=document.getElementById('f'),t=f.q,btn=f.querySelector('button.p'),al=document.getElementById('al'),fi=document.getElementById('fi');
+// file đính kèm: nút 📎, dán hình (Cmd/Ctrl+V), kéo thả. ponytail: gửi base64 trong form, tối đa 5 file x 10 MB; "Thử lại" không gửi lại file
+let A=[];
+function add(fs){for(const x of fs){if(A.length>=5){alert('Tối đa 5 file mỗi câu.');break}if(x.size>10485760){alert(x.name+' lớn hơn 10 MB.');continue}A.push(x)}draw()}
+function draw(){al.textContent='';A.forEach((x,i)=>{const s=document.createElement('span'),b=document.createElement('b');s.textContent=x.name;b.textContent='×';b.onclick=()=>{A.splice(i,1);draw()};s.append(b);al.append(s)})}
+const b64=x=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result.split(',')[1]||'');r.onerror=no;r.readAsDataURL(x)});
+document.getElementById('ab').onclick=()=>fi.click();fi.onchange=()=>{add(fi.files);fi.value=''};
+t.addEventListener('paste',e=>{const fs=[...e.clipboardData.files];if(fs.length){e.preventDefault();add(fs)}});
+f.ondragover=e=>{e.preventDefault();f.classList.add('dr')};f.ondragleave=()=>f.classList.remove('dr');f.ondrop=e=>{e.preventDefault();f.classList.remove('dr');add(e.dataTransfer.files)};
 function mark(){if(document.getElementById('sf'))chat.querySelectorAll('.ans code').forEach(c=>{if(/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(c.textContent.trim())){c.className='tr';c.title='Mở log của trace này'}})}
 function busy(){mark();const w=!!chat.querySelector('.wait');btn.disabled=w;t.placeholder=w?'AI đang trả lời…':'Hỏi tiếp về kết quả này… (Enter để gửi, Shift+Enter xuống dòng)'}
 function last(){const q=chat.querySelectorAll('.q');q.length&&q[q.length-1].scrollIntoView({block:'start'})}
@@ -773,8 +785,10 @@ async function poll(){
   try{const d=new DOMParser().parseFromString(await(await fetch(location.href)).text(),'text/html').getElementById('chat');
     if(d.innerHTML!=chat.innerHTML){const more=d.children.length!=chat.children.length;chat.innerHTML=d.innerHTML;if(more)last()}}catch(e){}
   busy();if(chat.querySelector('.wait'))setTimeout(poll,3000)}
-f.onsubmit=async e=>{e.preventDefault();if(btn.disabled||!t.value.trim())return;
-  const b=new URLSearchParams(new FormData(f));t.value='';t.style.height='auto';btn.disabled=true;
+f.onsubmit=async e=>{e.preventDefault();if(btn.disabled||!(t.value.trim()||A.length))return;
+  const b=new URLSearchParams({name:f.elements.name.value,tid:f.elements.tid.value,q:t.value.trim()||'Xem file đính kèm và cho nhận xét.'}),fs=A;btn.disabled=true;
+  try{for(const x of fs){b.append('fn',x.name);b.append('fd',await b64(x))}}catch(_){btn.disabled=false;return alert('Không đọc được file đính kèm.')}
+  A=[];draw();t.value='';t.style.height='auto';
   const r=await fetch(f.action,{method:'POST',body:b});if(!r.ok)alert('Không gửi được câu hỏi.');poll()};
 chat.onclick=e=>{const li=e.target.closest('h4+ul li'),c=e.target.closest('code.tr');
   if(e.target.closest('.stop')){e.target.disabled=true;fetch('@B@/stop',{method:'POST',body:new URLSearchParams({name:f.elements.name.value,tid:f.elements.tid.value})});return}
@@ -904,7 +918,17 @@ class H(http.server.BaseHTTPRequestHandler):
         if u.path == B + '/more':
             try: sc = json.load(open(os.path.join(CONF, 'ask', os.path.basename(g('tid')) + '.scope')))
             except (OSError, ValueError): sc = None
-            code, out = gl('_more', g('name'), g('tid'), g('q'), stdin=trace_logs(g('name'), sc['sid'], sc['app'], sc['tm'], g('q')) if sc else '')
+            att = []   # hình / file đính kèm ở khung chat -> lưu vào ask/att/<tid>/ rồi đưa đường dẫn cho AI đọc
+            if f.get('fn') and re.fullmatch(r'\d{8}-\d{6}', g('tid')):
+                import base64
+                ad = os.path.join(CONF, 'ask', 'att', g('tid')); os.makedirs(ad, exist_ok=True)
+                for i, (n, d) in enumerate(list(zip(f['fn'], f.get('fd', [])))[:5]):
+                    try: d = base64.b64decode(d, validate=True)
+                    except ValueError: return self.page('', 400)
+                    if len(d) > 10 << 20: return self.page('', 413)
+                    att.append(os.path.join(ad, '%s-%d-%s' % (time.strftime('%H%M%S'), i, re.sub(r'[^\w.]+', '_', os.path.basename(n))[-80:] or 'file')))
+                    open(att[-1], 'wb').write(d)
+            code, out = gl('_more', g('name'), g('tid'), g('q'), *att, stdin=trace_logs(g('name'), sc['sid'], sc['app'], sc['tm'], g('q')) if sc else '')
             return self.page('', 400 if code else 200)
         if u.path == B + '/stop' and re.fullmatch(r'\d{8}-\d{6}', g('tid')):
             d = os.path.join(CONF, 'ask')
