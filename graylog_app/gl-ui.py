@@ -765,7 +765,7 @@ body{max-width:900px}
 @CTX@
 <div id=chat>@ITEMS@</div>
 <form id=f method=post action="@B@/more"><input type=hidden name=name value="@N@"><input type=hidden name=tid value="@TID@">
-<div id=al></div><button type=button id=ab title="Đính kèm hình / file (cũng có thể dán hình hoặc kéo thả file vào ô này). Tối đa 5 file, mỗi file 10 MB. File được gửi nguyên vẹn lên Claude, không che dữ liệu.">📎</button><input type=file id=fi multiple hidden>
+<div id=al></div><button type=button id=ab title="Đính kèm hình / file (cũng có thể dán hình hoặc kéo thả file vào ô này). Tối đa 5 file, mỗi file 10 MB. File được gửi nguyên vẹn lên AI, không che dữ liệu.">📎</button><input type=file id=fi multiple hidden>
 <textarea name=q rows=1 autofocus></textarea><button class=p>Gửi ↑</button></form>@SF@
 <script>
 const S=sessionStorage,fn=()=>+S.fwd||0;addEventListener(`pageshow`,()=>{fw.hidden=!(fn()>0||(window.navigation&&navigation.canGoForward))});addEventListener(`click`,e=>{const a=e.target.closest(`a`);if(!a)return;S.fwd=a.id==`fw`?fn()-1:a.getAttribute(`onclick`)?fn()+1:0},true);addEventListener(`submit`,e=>{if(!e.defaultPrevented)S.fwd=0});
@@ -874,10 +874,37 @@ def get_streams(name, live=True):
     return r
 
 
+AIS = (('claude', 'Claude', 'qua Claude Code'), ('codex', 'OpenAI', 'qua Codex CLI'), ('gemini', 'Gemini', 'qua Gemini CLI'), ('custom', 'Tuỳ chỉnh', 'lệnh riêng của bạn'))
+
+
+def gear():   # nút bánh răng góc trên phải ở mọi màn hình: chọn nhà cung cấp AI (lưu ở ai.json, gl.py đọc khi hỏi)
+    try: d = json.load(open(os.path.join(CONF, 'ai.json'), encoding='utf-8'))
+    except (OSError, ValueError): d = {}
+    cur = d.get('p') if d.get('p') in [a[0] for a in AIS] else 'claude'
+    return """<style>#cfg{position:fixed;top:10px;right:14px;z-index:30;width:36px;height:36px;padding:0;border:1px solid #8886;border-radius:50%%;background:Canvas;color:CanvasText;font-size:18px;line-height:1;cursor:pointer;opacity:.75}#cfg:hover{opacity:1}
+#cfd{border:1px solid #8886;border-radius:12px;padding:20px 22px;width:min(480px,90vw);box-sizing:border-box;font:15px/1.5 -apple-system,sans-serif;color:CanvasText;background:Canvas}#cfd::backdrop{background:#0008}
+#cfd h3{margin:0 0 2px;font-size:18px}#cfd small{opacity:.65}#cfd label{display:flex;gap:10px;align-items:baseline;font-weight:400;margin:10px 0;cursor:pointer}#cfd label input{width:auto;margin:0}#cfd label b{min-width:76px}
+#cfc{width:100%%;box-sizing:border-box;font:13px ui-monospace,monospace;padding:8px 10px;border:1px solid #8888;border-radius:8px;background:none;color:inherit}
+#cfh{white-space:pre-wrap;font:12px/1.6 ui-monospace,monospace;border:1px solid #8885;border-radius:8px;padding:10px 12px;margin:12px 0 0;overflow:auto;user-select:text;-webkit-user-select:text}#cfh:empty{display:none}#cfd i{font-style:normal;font-size:12px;margin-left:auto}#cfd i.y{color:#2a9d5c}#cfd i.n{color:#d98a1c}
+#cfo{white-space:pre-wrap;font-size:13px;max-height:9em;overflow:auto;margin:12px 0 0}#cfo:empty{display:none}#cfd .cfb{display:flex;gap:10px;margin-top:16px}#cfd .cfb button{font:inherit;padding:7px 14px;border-radius:8px;cursor:pointer}</style>
+<button id=cfg type=button title="Cài đặt AI: chọn nhà cung cấp" aria-label="Cài đặt AI">⚙</button>
+<dialog id=cfd><h3>Cài đặt AI</h3><small>Phần "Phân tích với AI" sẽ hỏi nhà cung cấp chọn ở đây, qua công cụ dòng lệnh của họ trên máy này. App không giữ API key nào.</small>
+%s<input id=cfc value="%s" placeholder="vd: ollama run llama3" spellcheck=false hidden>
+<div id=cfh></div><p id=cfo></p><div class=cfb><button class=p id=cfs type=button>Lưu và kiểm tra</button><button id=cfx type=button>Đóng</button></div></dialog>
+<script>(()=>{const $=i=>document.getElementById(i),d=$('cfd'),o=$('cfo'),c=$('cfc'),v=()=>d.querySelector('input[name=cfp]:checked').value,s=()=>{c.hidden=v()!='custom';$('cfh').textContent=(S[v()]||[])[1]||''};let S={};
+const st=async()=>{try{S=await(await fetch('%s/aistat',{method:'POST'})).json()}catch(_){}for(const k in S){const i=$('cfi-'+k);if(S[k][0]!=null){i.textContent=S[k][0]?'đã cài':'chưa cài';i.className=S[k][0]?'y':'n'}}s()};
+$('cfg').onclick=()=>{d.showModal();st()};$('cfx').onclick=()=>d.close();d.onchange=s;s();
+$('cfs').onclick=async()=>{$('cfs').disabled=true;o.textContent='Đang lưu và hỏi thử một câu, chờ chút…';
+try{o.textContent=await(await fetch('%s/ai',{method:'POST',body:new URLSearchParams({p:v(),cmd:c.value})})).text()}catch(_){o.textContent='Không lưu được.'}$('cfs').disabled=false;st()}})()</script>""" % (
+        ''.join('<label><input type=radio name=cfp value=%s%s><b>%s</b><small>%s</small><i id=cfi-%s></i></label>' % (k, ' checked' if k == cur else '', n, h, k) for k, n, h in AIS),
+        E(str(d.get('cmd', ''))), B, B)
+
+
 class H(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 
     def page(self, body, code=200):
+        if body.startswith(CSS): body += gear()   # trang đầy đủ nào cũng có nút bánh răng
         b = body.encode()
         self.send_response(code); self.send_header('Content-Type', 'text/html; charset=utf-8')
         self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
@@ -910,6 +937,8 @@ class H(http.server.BaseHTTPRequestHandler):
         names = [p[0] for p in partners()]
         if u.path == B + '/save':
             return self.go(msg=gl('_save', g('old'), g('name'), g('url'), g('user'), stdin=f.get('pw', [''])[0])[1])
+        if u.path == B + '/aistat': return self.page(gl('_aistat')[1])
+        if u.path == B + '/ai': return self.page(gl('_ai', g('p'), 'check', stdin=g('cmd'))[1])   # nút bánh răng: lưu rồi hỏi thử một câu
         if u.path == B + '/test': return self.page(gl('_test', g('old'), g('url'), g('user'), stdin=f.get('pw', [''])[0])[1])
         if g('name') not in names: return self.page('Không có đối tác này', 400)
         if u.path == B + '/pw': return self.page(gl('_pw', g('name'))[1])   # con mắt ở form Sửa: xem mật khẩu đã lưu

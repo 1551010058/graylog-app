@@ -77,9 +77,20 @@ Khi đó status được gộp về ba nhóm: mã HTTP 5xx (hoặc `level` 0–3
 
 ## 4. Phân tích với AI
 
-Cần cài [`claude`](https://claude.com/claude-code) và [`uv`](https://docs.astral.sh/uv/). Bấm "Phân tích với AI" hoặc nút "Phân tích" trên một trace rồi đặt câu hỏi. Nội dung log được gửi lên Claude; số điện thoại, CCCD và các dữ liệu tương tự được che trước khi gửi.
+Mặc định dùng Claude: cần cài [`claude`](https://claude.com/claude-code) và [`uv`](https://docs.astral.sh/uv/). Đổi nhà cung cấp ở nút bánh răng góc trên bên phải (màn hình nào cũng có):
 
-Khi hỏi tiếp trong hội thoại, có thể đính kèm hình hoặc file: bấm 📎, dán hình (Cmd/Ctrl+V) hoặc kéo thả vào ô nhập. Tối đa 5 file mỗi câu, mỗi file 10 MB. File đính kèm được gửi nguyên vẹn lên Claude, không che dữ liệu, và được lưu trong `~/.config/gl/ask/att/` cho tới khi hội thoại hết hạn 30 ngày.
+| Lựa chọn | Cần có trên máy |
+|---|---|
+| Claude | lệnh `claude` (Claude Code) đã đăng nhập |
+| OpenAI | lệnh `codex` (Codex CLI) đã đăng nhập |
+| Gemini | lệnh `gemini` (Gemini CLI) đã đăng nhập |
+| Tuỳ chỉnh | một lệnh bất kỳ nhận câu hỏi ở stdin và in câu trả lời ra stdout, vd `ollama run llama3` |
+
+Hộp cài đặt cho biết lệnh của từng nhà đã cài chưa và hiện sẵn lệnh cài, lệnh đăng nhập. "Lưu và kiểm tra" lưu lựa chọn rồi hỏi thử một câu thật. App không giữ API key nào. Chỉ Claude nối được phiên cũ khi hỏi tiếp; các lựa chọn khác nhận lại phần cuối hội thoại trong mỗi câu hỏi. Lệnh tuỳ chỉnh không tự truy vấn Graylog, chỉ đọc log app gửi kèm. OpenAI và Gemini chưa được thử trên máy thật.
+
+Bấm "Phân tích với AI" hoặc nút "Phân tích" trên một trace rồi đặt câu hỏi. Nội dung log được gửi lên nhà cung cấp AI đang chọn; số điện thoại, CCCD và các dữ liệu tương tự được che trước khi gửi.
+
+Khi hỏi tiếp trong hội thoại, có thể đính kèm hình hoặc file: bấm 📎, dán hình (Cmd/Ctrl+V) hoặc kéo thả vào ô nhập. Tối đa 5 file mỗi câu, mỗi file 10 MB. File đính kèm được gửi nguyên vẹn lên AI, không che dữ liệu, và được lưu trong `~/.config/gl/ask/att/` cho tới khi hội thoại hết hạn 30 ngày.
 
 ## 5. Bảo mật
 
