@@ -1,0 +1,3 @@
+#!/bin/zsh
+# gl — toàn bộ logic nằm ở gl.py (chạy chung cho macOS và Windows). Bản zsh cũ: ~/.config/gl/backup/gl.zsh
+exec /usr/bin/python3 ${0:A:h}/gl.py "$@"

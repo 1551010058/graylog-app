@@ -1,0 +1,40 @@
+#!/bin/zsh
+# Build ~/Applications/Graylog.app từ gl-app.swift + gl-icon.swift. Chạy lại sau khi sửa 2 file đó.
+set -e
+here=${0:A:h}; app=~/Applications/Graylog.app; w=$(mktemp -d)
+new=$w/Graylog.app
+mkdir -p $new/Contents/MacOS $new/Contents/Resources
+
+swiftc -O -o $new/Contents/MacOS/Graylog $here/gl-app.swift
+
+swift $here/gl-icon.swift $w/icon.png
+mkdir $w/Graylog.iconset
+for s in 16 32 128 256 512; do
+  sips -z $s $s $w/icon.png --out $w/Graylog.iconset/icon_${s}x${s}.png >/dev/null
+  sips -z $((s*2)) $((s*2)) $w/icon.png --out $w/Graylog.iconset/icon_${s}x${s}@2x.png >/dev/null
+done
+iconutil -c icns -o $new/Contents/Resources/Graylog.icns $w/Graylog.iconset
+
+cat > $new/Contents/Info.plist <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleName</key><string>Graylog</string>
+  <key>CFBundleIdentifier</key><string>local.linhmai.graylog</string>
+  <key>CFBundleExecutable</key><string>Graylog</string>
+  <key>CFBundleIconFile</key><string>Graylog</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSAppleEventsUsageDescription</key><string>Graylog mở tab trong Chrome và tự điền đăng nhập cho đối tác bạn chọn.</string>
+  <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
+</dict></plist>
+EOF
+codesign -s - --force $new >/dev/null 2>&1
+
+# đổi chỗ: bản cũ dời sang thư mục tạm chứ không xoá
+osascript -e 'tell application id "local.linhmai.graylog" to quit' >/dev/null 2>&1 || true
+[[ -e $app ]] && mv $app $w/old.app
+mkdir -p ${app:h}; mv $new $app
+touch $app
+print "đã build $app (bản cũ: $w/old.app)"
