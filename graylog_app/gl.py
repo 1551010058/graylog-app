@@ -171,6 +171,15 @@ def bucket(f, v):   # giá trị status -> SUCCESS / BUSINESS_ERROR / ERROR: mã
     n = int(float(v))
     if f == 'level': return 'ERROR' if n <= 3 else 'BUSINESS_ERROR' if n == 4 else 'SUCCESS'
     return 'ERROR' if n >= 500 else 'BUSINESS_ERROR' if n >= 400 else 'SUCCESS'
+def why(body):
+    """response lỗi -> (câu báo lỗi, câu truy vấn Graylog tìm đúng các log đó)."""
+    try: j = json.loads(body); w = next((str(j[k]) for k in ('message', 'toastMessage', 'errorReason') if j.get(k)), body)
+    except (ValueError, AttributeError, TypeError, KeyError): w = body
+    w = w.strip().split('\n')[0]
+    if len(w) > 300: w = w[:300].rsplit(' ', 1)[0]
+    return w, '"%s"' % w.replace('\\', '\\\\').replace('"', '\\"')
+
+
 def streams(name):   # mỗi dòng "tên   —   id"
     ss = json.loads(api(name, '/api/streams'))['streams']
     return [s['title'] + SEP + s['id'] for s in sorted(ss, key=lambda s: s['title'].lower()) if not s.get('disabled')]
@@ -444,7 +453,9 @@ def main(a):
             sl = slow if F['dur'] == 'duration_ms' else F['dur'] + ':>=' + ms if F['dur'] else '_exists_:gl_khong_co_field_thoi_gian'
             return sl, run(q, [piv('st', [F['st']]), piv('api', [F['api'], F['st']]), piv('slow', [F['api']], sl), piv('app', [F['app'], F['st']]), dict(piv('last', [F['api']]), series=[{'type': 'max', 'id': 't', 'field': 'timestamp'}]),
                                dict(piv('time', []), row_groups=[{'type': 'time', 'field': 'timestamp', 'interval': {'type': 'auto', 'scaling': 0.5}}],
-                                    column_groups=[{'type': 'values', 'field': F['st'], 'limit': 10}])])
+                                    column_groups=[{'type': 'values', 'field': F['st'], 'limit': 10}]),
+                               piv('eb', [F['st'], F['app'], F['api'], 'response_body'], 'NOT %s:SUCCESS AND _exists_:response_body' % F['st']),
+                               piv('ex', [F['st'], F['app'], F['api'], 'api_exception'], 'NOT %s:SUCCESS AND NOT _exists_:response_body' % F['st'])])
         F = {k: v[0] for k, v in CAND.items()}; slow, r = full(F)
         if not r.get('errors') and not r['search_types']['st'].get('rows'):
             # không có log theo field mặc định -> dò: đếm log có từng field ứng viên trong đúng phạm vi này.
@@ -468,6 +479,17 @@ def main(a):
             for k in ('st', 'api', 'app'): o[k] = merge(o[k], 2 + (k != 'st'))
             for x in o['time']: x[1] = dict(merge([[s, n] for s, n in x[1].items()], 2))
             o['sq'] = dict(zip(('ERROR', 'BUSINESS_ERROR', 'SUCCESS'), (fst + ':' + r for r in (('[0 TO 3]', '4', '[5 TO 7]') if fst == 'level' else ('[500 TO 599]', '[400 TO 499]', '[100 TO 399]')))))
+        if fst == 'api_status':   # lỗi là gì: Graylog đếm theo response_body, tool rút câu báo lỗi trong JSON rồi gộp; lỗi không có response thì theo tên exception
+            # ponytail: chỉ khuôn log api_status (field response_body / api_exception), tối đa 500 response khác nhau; khuôn khác thì thêm field vào đây
+            e = {}   # (status, câu lỗi, truy vấn) -> {(application, api): số lần}
+            for k in ('eb', 'ex'):
+                for x in t[k].get('rows', []):
+                    if len(x['key']) == 4 and x['values']:
+                        v = x['key'][3]
+                        w, q = why(v) if k == 'eb' else ('(không có response, không có exception)', 'NOT _exists_:response_body AND NOT _exists_:api_exception') if v == '(Empty Value)' else (v, 'api_exception:"%s"' % v.replace('\\', '\\\\').replace('"', '\\"'))
+                        d = e.setdefault((x['key'][0], w, q), {}); p = tuple(x['key'][1:3]); d[p] = d.get(p, 0) + x['values'][0]['value']
+            # mỗi lỗi: [status, câu lỗi, số lần, truy vấn, [[application, api, số lần] nhiều nhất trước]]
+            o['err'] = sorted(([s, w, sum(d.values()), q, sorted(([a, p, n] for (a, p), n in d.items()), key=lambda x: -x[2])] for (s, w, q), d in e.items()), key=lambda x: -x[2])
         o['f'] = F; o['slowq'] = slow; print(json.dumps(o))
     elif c == '_more':   # _more <name> <tid> <câu hỏi> — hỏi tiếp trong một cuộc hội thoại (câu trước phải trả lời xong)
         name, tid, q = a[1:4]; th = os.path.join(ASK, tid + '.thread')
