@@ -758,7 +758,7 @@ body{max-width:900px}
 .wait{padding:14px 18px}.wait>span{animation:pulse 1.4s infinite}@keyframes pulse{50%{opacity:.45}}.wait small{opacity:.6;margin:0 12px}.stop,.retry{padding:3px 12px;font-size:13px}.ans code.tr{cursor:pointer;text-decoration:underline dotted}
 #f{position:sticky;bottom:0;display:flex;gap:8px;align-items:flex-end;background:Canvas;padding:12px 0 16px;margin-top:24px;border-top:1px solid #8885}
 #f{flex-wrap:wrap}#al{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px}#al:empty{display:none}#al span{border:1px solid #8886;border-radius:14px;padding:3px 6px 3px 12px;font-size:13px}#al b{cursor:pointer;padding:0 6px;opacity:.6}#f.dr textarea{outline:2px dashed #2f6fed}
-#f textarea{flex:1;resize:none;max-height:9em}#f button:disabled{opacity:.45;cursor:default}
+#f textarea{flex:1;resize:none;max-height:40vh;font-size:16px;line-height:1.5}#f button:disabled{opacity:.45;cursor:default}
 </style><title>Graylog AI — @N@</title>
 <div class=nav><a class=btn href="@FORM@" onclick="if(history.length>1){history.back();return false}">← Quay lại</a><a class=btn id=fw hidden href="javascript:history.forward()">Tới →</a>
 <a class="btn p" href="@FORM@">🔍 Tìm / hỏi câu khác</a><a class="btn r" href="@B@">🏠 Đối tác</a></div>
@@ -766,7 +766,7 @@ body{max-width:900px}
 <div id=chat>@ITEMS@</div>
 <form id=f method=post action="@B@/more"><input type=hidden name=name value="@N@"><input type=hidden name=tid value="@TID@">
 <div id=al></div><button type=button id=ab title="Đính kèm hình / file (cũng có thể dán hình hoặc kéo thả file vào ô này). Tối đa 5 file, mỗi file 10 MB. File được gửi nguyên vẹn lên AI, không che dữ liệu.">📎</button><input type=file id=fi multiple hidden>
-<textarea name=q rows=1 autofocus></textarea><button class=p>Gửi ↑</button></form>@SF@
+<textarea name=q rows=3 autofocus></textarea><button class=p>Gửi ↑</button></form>@SF@
 <script>
 const S=sessionStorage,fn=()=>+S.fwd||0;addEventListener(`pageshow`,()=>{fw.hidden=!(fn()>0||(window.navigation&&navigation.canGoForward))});addEventListener(`click`,e=>{const a=e.target.closest(`a`);if(!a)return;S.fwd=a.id==`fw`?fn()-1:a.getAttribute(`onclick`)?fn()+1:0},true);addEventListener(`submit`,e=>{if(!e.defaultPrevented)S.fwd=0});
 const chat=document.getElementById('chat'),f=document.getElementById('f'),t=f.q,btn=f.querySelector('button.p'),al=document.getElementById('al'),fi=document.getElementById('fi');
@@ -891,11 +891,11 @@ def gear():   # nút bánh răng góc trên phải ở mọi màn hình: chọn 
 <dialog id=cfd><h3>Cài đặt AI</h3><small>Phần "Phân tích với AI" sẽ hỏi nhà cung cấp chọn ở đây, qua công cụ dòng lệnh của họ trên máy này. App không giữ API key nào.</small>
 %s<input id=cfc value="%s" placeholder="vd: ollama run llama3" spellcheck=false hidden>
 <div id=cfh></div><p id=cfo></p><div class=cfb><button class=p id=cfs type=button>Lưu và kiểm tra</button><button id=cfx type=button>Đóng</button></div></dialog>
-<script>(()=>{const $=i=>document.getElementById(i),d=$('cfd'),o=$('cfo'),c=$('cfc'),v=()=>d.querySelector('input[name=cfp]:checked').value,s=()=>{c.hidden=v()!='custom';$('cfh').textContent=(S[v()]||[])[1]||''};let S={};
+<script>(()=>{const $=i=>document.getElementById(i),d=$('cfd'),o=$('cfo'),c=$('cfc'),v=()=>d.querySelector('input[name=cfp]:checked').value,s=()=>{c.hidden=v()!='custom';$('cfh').textContent=(S[v()]||[])[0]?'':(S[v()]||[])[1]||''};let S={};
 const st=async()=>{try{S=await(await fetch('%s/aistat',{method:'POST'})).json()}catch(_){}for(const k in S){const i=$('cfi-'+k);if(S[k][0]!=null){i.textContent=S[k][0]?'đã cài':'chưa cài';i.className=S[k][0]?'y':'n'}}s()};
-$('cfg').onclick=()=>{d.showModal();st()};$('cfx').onclick=()=>d.close();d.onchange=s;s();
+const R=()=>[...d.querySelectorAll('input[name=cfp]')];$('cfg').onclick=()=>{R().forEach(r=>r.checked=r.defaultChecked);c.value=c.defaultValue;o.textContent='';s();d.showModal();st()};$('cfx').onclick=()=>d.close();d.onchange=s;s();
 $('cfs').onclick=async()=>{$('cfs').disabled=true;o.textContent='Đang lưu và hỏi thử một câu, chờ chút…';
-try{o.textContent=await(await fetch('%s/ai',{method:'POST',body:new URLSearchParams({p:v(),cmd:c.value})})).text()}catch(_){o.textContent='Không lưu được.'}$('cfs').disabled=false;st()}})()</script>""" % (
+try{o.textContent=await(await fetch('%s/ai',{method:'POST',body:new URLSearchParams({p:v(),cmd:c.value})})).text();R().forEach(r=>r.defaultChecked=r.checked);c.defaultValue=c.value}catch(_){o.textContent='Không lưu được.'}$('cfs').disabled=false;st()}})()</script>""" % (
         ''.join('<label><input type=radio name=cfp value=%s%s><b>%s</b><small>%s</small><i id=cfi-%s></i></label>' % (k, ' checked' if k == cur else '', n, h, k) for k, n, h in AIS),
         E(str(d.get('cmd', ''))), B, B)
 
