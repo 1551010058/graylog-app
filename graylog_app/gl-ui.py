@@ -1033,13 +1033,24 @@ class H(http.server.BaseHTTPRequestHandler):
 
 
 threading.Thread(target=check_update, daemon=True).start()
+def bye(*_):   # tắt app = không để gì chạy ngầm: dừng luôn các câu AI đang trả lời dở (như bấm nút Dừng)
+    # ponytail: câu vừa gửi chưa kịp ghi .pid thì lọt, vẫn tự hết sau tối đa 8 phút
+    d = os.path.join(CONF, 'ask')
+    for f in os.listdir(d) if os.path.isdir(d) else ():
+        if re.fullmatch(r'\d{8}-\d{6}\.pid', f):
+            open(os.path.join(d, f[:-4] + '.stop'), 'w').close(); gl('_stop', f[:-4])
+    os._exit(0)
+
+
 srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), H)
 URL = 'http://127.0.0.1:%d%s' % (srv.server_address[1], B)
 if sys.stdout: print(URL, flush=True)
 if sys.argv[2:] == ['app']:
     # chạy dưới Graylog.app: sống cùng app, app thoát (stdin đóng) thì thoát theo
     import threading
-    threading.Thread(target=lambda: (sys.stdin.read(), os._exit(0)), daemon=True).start()
+    import signal
+    signal.signal(signal.SIGTERM, bye)   # Graylog.app gửi SIGTERM lúc thoát
+    threading.Thread(target=lambda: (sys.stdin.read(), bye()), daemon=True).start()
     srv.serve_forever()
 elif sys.argv[2:] == ['browser']:
     # không có app native (Windows): mở một cửa sổ Edge/Chrome dạng app, đóng cửa sổ thì thoát
@@ -1051,6 +1062,7 @@ elif sys.argv[2:] == ['browser']:
     if exe:   # profile riêng để tiến trình này sống đúng bằng cửa sổ
         subprocess.call([exe, '--app=' + URL, '--user-data-dir=' + os.path.join(CONF, 'browser-profile'), '--window-size=900,720',
                          '--no-first-run', '--no-default-browser-check', '--disable-background-mode'], stderr=subprocess.DEVNULL)
+        bye()
     else:   # ponytail: không tìm thấy Edge/Chrome -> trình duyệt mặc định, server chạy tới khi tắt tiến trình
         webbrowser.open(URL)
         while True: time.sleep(3600)
