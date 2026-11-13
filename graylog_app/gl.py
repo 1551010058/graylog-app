@@ -420,6 +420,8 @@ def main(a):
         if old and old != name: pw_del(old, olduser); drop(old)
         elif old and olduser != user and not WIN: pw_del(old, olduser)   # Windows: một mục cho mỗi tên, vừa ghi đè xong
         record(name, url, user); print('đã lưu ' + name)
+    elif c == '_msg':   # _msg <name> <index> <message id> -> JSON 1 log (từ link .../messages/<index>/<id> của Graylog)
+        sys.stdout.write(api(a[1], '/api/messages/%s/%s' % tuple(urllib.parse.quote(x, safe='') for x in a[2:4])).decode())
     elif c == '_search':   # _search <name> <stream id,…|""> <application|""> <số giây | từ~đến UTC> <query> -> JSON log gốc, mới nhất trước
         name, sid, app, tm = a[1:5]; q = (a[5] if len(a) > 5 else '') or '*'
         if not ((not sid or re.fullmatch(SIDS, sid)) and (not app or re.fullmatch(APP, app))
@@ -454,8 +456,8 @@ def main(a):
             return sl, run(q, [piv('st', [F['st']]), piv('api', [F['api'], F['st']]), piv('slow', [F['api']], sl), piv('app', [F['app'], F['st']]), dict(piv('last', [F['api']]), series=[{'type': 'max', 'id': 't', 'field': 'timestamp'}]),
                                dict(piv('time', []), row_groups=[{'type': 'time', 'field': 'timestamp', 'interval': {'type': 'auto', 'scaling': 0.5}}],
                                     column_groups=[{'type': 'values', 'field': F['st'], 'limit': 10}]),
-                               piv('eb', [F['st'], F['app'], F['api'], 'response_body'], 'NOT %s:SUCCESS AND _exists_:response_body' % F['st']),
-                               piv('ex', [F['st'], F['app'], F['api'], 'api_exception'], 'NOT %s:SUCCESS AND NOT _exists_:response_body' % F['st'])])
+                               dict(piv('eb', [F['st'], F['app'], F['api'], 'response_body'], 'NOT %s:SUCCESS AND _exists_:response_body' % F['st']), series=[{'type': 'count', 'id': 'n'}, {'type': 'max', 'id': 't', 'field': 'timestamp'}]),
+                               dict(piv('ex', [F['st'], F['app'], F['api'], 'api_exception'], 'NOT %s:SUCCESS AND NOT _exists_:response_body' % F['st']), series=[{'type': 'count', 'id': 'n'}, {'type': 'max', 'id': 't', 'field': 'timestamp'}])])
         F = {k: v[0] for k, v in CAND.items()}; slow, r = full(F)
         if not r.get('errors') and not r['search_types']['st'].get('rows'):
             # không có log theo field mặc định -> dò: đếm log có từng field ứng viên trong đúng phạm vi này.
@@ -487,9 +489,9 @@ def main(a):
                     if len(x['key']) == 4 and x['values']:
                         v = x['key'][3]
                         w, q = why(v) if k == 'eb' else ('(không có response, không có exception)', 'NOT _exists_:response_body AND NOT _exists_:api_exception') if v == '(Empty Value)' else (v, 'api_exception:"%s"' % v.replace('\\', '\\\\').replace('"', '\\"'))
-                        d = e.setdefault((x['key'][0], w, q), {}); p = tuple(x['key'][1:3]); d[p] = d.get(p, 0) + x['values'][0]['value']
-            # mỗi lỗi: [status, câu lỗi, số lần, truy vấn, [[application, api, số lần] nhiều nhất trước]]
-            o['err'] = sorted(([s, w, sum(d.values()), q, sorted(([a, p, n] for (a, p), n in d.items()), key=lambda x: -x[2])] for (s, w, q), d in e.items()), key=lambda x: -x[2])
+                        m = {y['key'][-1]: y['value'] for y in x['values']}; d = e.setdefault((x['key'][0], w, q), {}); p = tuple(x['key'][1:3]); c = d.get(p, (0, 0)); d[p] = (c[0] + (m.get('n') or 0), max(c[1], m.get('t') or 0))
+            # mỗi lỗi: [status, câu lỗi, số lần, truy vấn, [[application, api, số lần, lần gần nhất (ms)] nhiều nhất trước]]
+            o['err'] = sorted(([s, w, sum(n for n, _ in d.values()), q, sorted(([a, p, n, t] for (a, p), (n, t) in d.items()), key=lambda x: -x[2])] for (s, w, q), d in e.items()), key=lambda x: -x[2])
         o['f'] = F; o['slowq'] = slow; print(json.dumps(o))
     elif c == '_more':   # _more <name> <tid> <câu hỏi> — hỏi tiếp trong một cuộc hội thoại (câu trước phải trả lời xong)
         name, tid, q = a[1:4]; th = os.path.join(ASK, tid + '.thread')

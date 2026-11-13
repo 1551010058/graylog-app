@@ -17,6 +17,8 @@
 2. **Thời gian**: 15 phút đến 7 ngày, hoặc tuỳ chỉnh từ – đến.
 3. **Nội dung**: từ khoá, trace id, hoặc cú pháp Graylog (`field:giá_trị`, `AND` / `OR` viết hoa, cụm từ chính xác đặt trong ngoặc kép). Để trống là xem mọi log.
 
+Dán thẳng link một log của Graylog (`http://10.0.0.1:9000/messages/<index>/<id>`) vào ô nội dung, hoặc vào ô "Tìm đối tác…" ở màn hình Đối tác rồi Enter, cũng được: tool mở toàn bộ trace của log đó trong khoảng 30 phút trước và sau, bỏ qua phạm vi và thời gian đang chọn. Link của đối tác khác cũng được: tool tự chuyển sang đối tác có cùng địa chỉ Graylog.
+
 Cột bên phải giữ các lần tìm và các hội thoại AI gần đây trong 30 ngày.
 
 ## 3. Kết quả
