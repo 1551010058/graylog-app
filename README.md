@@ -8,7 +8,8 @@
 
 - **Nhiều đối tác**: mỗi đối tác một địa chỉ Graylog và tài khoản riêng; mật khẩu nằm trong Keychain (macOS) hoặc Credential Manager (Windows), không nằm trong file nào.
 - **Tìm log theo trace**: gom các log cùng trace id thành một lượt gọi, thấy từng bước qua từng service, thời lượng và kết quả cuối.
-- **Dashboard**: số call, lỗi nghiệp vụ, lỗi hệ thống, % lỗi, lần gọi gần nhất và số call chậm theo từng API; biểu đồ theo thời gian và theo application; sắp xếp nhiều cột; bấm một con số để mở đúng các log đó.
+- **Dán link log**: dán link một log của Graylog (`…/messages/<index>/<id>`) là mở toàn bộ trace của log đó, tự chọn đúng đối tác theo địa chỉ trong link.
+- **Dashboard**: số call, lỗi nghiệp vụ, lỗi hệ thống, % lỗi, lần gọi gần nhất và số call chậm theo từng API; biểu đồ theo thời gian và theo application; mục "Lỗi là gì" gộp lỗi theo câu báo lỗi, cho biết application và API nào bị; sắp xếp nhiều cột; bấm một con số để mở đúng các log đó.
 - **Phân tích với AI** (tuỳ chọn): đặt câu hỏi bằng tiếng Việt về một trace hoặc một sự cố.
 - **Mở Graylog**: mở trang Graylog của đối tác và tự đăng nhập (macOS).
 

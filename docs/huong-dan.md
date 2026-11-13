@@ -58,7 +58,7 @@ Số liệu do Graylog đếm trên toàn bộ phạm vi đang chọn, không ph
 
 - **Theo application**: hiện khi có từ hai application trở lên. Bấm một application để xem riêng biểu đồ và bảng API của nó.
 - **Status**: bấm một status để chỉ xem các API có status đó.
-- **Lỗi là gì**: biểu đồ tròn và danh sách 10 loại lỗi nhiều nhất, mỗi loại kèm application và API bị nhiều nhất (rê chuột vào dòng đó để xem đủ các nơi). Lỗi được gộp theo câu báo lỗi trong response (`message`, `toastMessage` hoặc `errorReason`); lỗi không có response thì gộp theo tên exception. Bấm một dòng để mở các log đó. Phần này cần field `response_body` / `api_exception`, tức chỉ có với log theo khuôn `api_status`.
+- **Lỗi là gì**: biểu đồ tròn và danh sách 10 loại lỗi nhiều nhất, mỗi loại kèm application và API bị nhiều nhất (rê chuột vào dòng đó để xem 5 nơi bị nhiều nhất, kèm số lần và lần gần nhất). Lỗi được gộp theo câu báo lỗi trong response (`message`, `toastMessage` hoặc `errorReason`); lỗi không có response thì gộp theo tên exception. Bấm một dòng để mở các log đó. Phần này cần field `response_body` / `api_exception`, tức chỉ có với log theo khuôn `api_status`.
 - **Theo API**: bấm tiêu đề cột để sắp xếp; bấm thêm cột khác để sắp xếp tiếp trên kết quả đang có (số nhỏ cạnh mũi tên là thứ tự bấm); "Bỏ sắp xếp" để về mặc định. Bấm tên API hoặc một con số để mở các log tương ứng, rồi "← Quay lại Dashboard" để về đúng trạng thái trước đó.
 - **Ngưỡng chậm**: chọn sẵn từ 200 ms đến 10 giây, hoặc tự nhập số ms. Cột cuối đếm số call có `duration_ms` từ ngưỡng đó trở lên.
 
