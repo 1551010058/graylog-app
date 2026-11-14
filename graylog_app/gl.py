@@ -589,10 +589,12 @@ def main(a):
             AIS[a[1]], rc, ans[:500], err[-1500:], '\n\nNếu lỗi là do chưa đăng nhập:\n' + ai_help(a[1]) if rc != 127 and a[1] in HELP else ''))
         return rc
     elif c == '_update':   # thẻ "Có bản mới": kéo code mới từ GitHub bằng uv rồi chạy graylog-app (chép file, build lại nếu cần, mở lại app)
-        path = login_path(); uv = shutil.which('uv', path=path); env = dict(os.environ, PATH=path); src = 'git+https://github.com/1551010058/graylog-app'
+        tag = a[1] if len(a) > 1 and re.fullmatch(r'v?\d+(\.\d+){0,3}', a[1]) else ''   # _update [tag]: cài đúng bản phát hành đó; không có tag thì lấy code mới nhất
+        path = login_path(); uv = shutil.which('uv', path=path); env = dict(os.environ, PATH=path); src = 'git+https://github.com/1551010058/graylog-app' + ('@' + tag if tag else '')
         hand = 'Mở Terminal chạy:\n  uv tool install --reinstall %s\n  graylog-app' % src
         if not uv: print('Máy này chưa có lệnh uv (https://docs.astral.sh/uv/). Cài uv rồi ' + hand[0].lower() + hand[1:]); return 1
-        r = subprocess.run([uv, 'tool', 'install', '--reinstall', src], capture_output=True, text=True, env=env, **NOWIN)
+        try: r = subprocess.run([uv, 'tool', 'install', '--reinstall', src], capture_output=True, text=True, env=env, timeout=180, **NOWIN)
+        except subprocess.TimeoutExpired: print('Tải bản mới quá 3 phút, đã dừng. Kiểm tra mạng rồi thử lại, hoặc ' + hand[0].lower() + hand[1:]); return 1
         try: bin_ = subprocess.run([uv, 'tool', 'dir', '--bin'], capture_output=True, text=True, env=env, **NOWIN).stdout.strip()
         except OSError: bin_ = ''
         exe = shutil.which('graylog-app', path=bin_ + os.pathsep + path)

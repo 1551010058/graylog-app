@@ -13,6 +13,7 @@ if WIN and os.path.basename(PY).lower() == 'pythonw.exe': PY = os.path.join(os.p
 # mọi việc thật do gl.py nằm cạnh file này làm (tham số đầu của dòng lệnh là đường dẫn gl cũ, không còn dùng)
 GL = [PY] + (['-X', 'utf8'] if WIN else []) + [os.path.join(os.path.dirname(os.path.abspath(__file__)), 'gl.py')]
 NOWIN = {'creationflags': 0x08000000} if WIN else {}   # không nháy cửa sổ đen trên Windows
+VERSION = '1.1.0'   # số phiên bản duy nhất: pyproject đọc dòng này; ra bản mới = sửa số ở đây rồi tạo release v<số> trên GitHub
 CONF = os.path.expanduser('~/.config/gl')
 SEP = '   —   '
 SECS = {'15 phút': 900, '1 giờ': 3600, '2 giờ': 7200, '6 giờ': 21600, '24 giờ': 86400, '7 ngày': 604800}
@@ -452,7 +453,10 @@ const KD={ok:['ok','✓ Thành công'],bad:['bad','✕ Thất bại'],unk:['unk'
 const LOOSE={id:'',name:'Log không có trace ID',path:'Xem riêng, không tự gán vào trace',full:1};
 const ALL={id:'',name:'Tất cả log',path:'Mọi log trong kết quả, không gom theo trace',full:1};
 let MD=0;
-function prep(){D.T.forEach(t=>{t.nb=t.logs.filter(x=>x.lv=='e').length;t.nw=t.logs.filter(x=>x.lv=='w').length;t.logs.forEach(x=>x.tid=t.id)});LOOSE.logs=D.L;ALL.logs=[].concat(...D.T.map(t=>t.logs),D.L);MD=new Set(ALL.logs.map(x=>x.d)).size>1}
+let ta='',APPS=[];   // ta: application đang lọc (trên các log đã tải)
+function prep(){D.T.forEach(t=>{t.svs=[...new Set(t.logs.map(x=>x.sv).filter(Boolean))];t.nb=t.logs.filter(x=>x.lv=='e').length;t.nw=t.logs.filter(x=>x.lv=='w').length;t.logs.forEach(x=>x.tid=t.id)});const al=[].concat(...D.T.map(t=>t.logs),D.L);APPS=[...new Set(al.map(x=>x.sv).filter(Boolean))].sort();if(!APPS.includes(ta))ta='';
+  const f=x=>!ta||x.sv==ta,s=$('tapp');LOOSE.logs=D.L.filter(f);ALL.logs=al.filter(f);MD=new Set(al.map(x=>x.d)).size>1;
+  s.hidden=APPS.length<2;s.innerHTML='<option value="">Mọi application ('+APPS.length+')'+APPS.map(a=>`<option${a==ta?' selected':''}>${esc(a)}`).join('')}
 prep();
 let pg=0;const PS=50;let cur=null,li=-1,tf='all',lf='all',tdesc=1,lasc=0,tab='',DSH=0,grp=localStorage.glgrp||'';const GK={sv:'Application',lv:'Mức log'},gk=x=>grp=='lv'?LV[x.lv][0]:x[grp]||'(không có)';
 async function cp(s,b){try{await navigator.clipboard.writeText(s)}catch(x){const a=document.createElement('textarea');a.value=s;document.body.append(a);a.select();document.execCommand('copy');a.remove()}
@@ -472,13 +476,13 @@ function code(s){if(!s)return '<div class=emp>(trống)</div>';let h='',p=0;
 function refold(pre){let h=-1;for(const d of pre.children){const n=+d.dataset.d;if(h>=0&&n>h){d.hidden=true;continue}d.hidden=false;h=d.classList.contains('cl')?n:-1}}
 document.addEventListener('click',e=>{const f=e.target.closest('.fo');if(!f)return;f.parentNode.classList.toggle('cl');refold(f.closest('pre'))});
 function rt(f){const w=$('tq').value.trim().toLowerCase();
-  let a=D.T.map((t,i)=>[t,i]).filter(([t])=>(tf=='all'||(tf=='e'?t.nb||t.kind=='bad':t.nw))&&(t.id+' '+t.name+' '+t.path).toLowerCase().includes(w));if(!tdesc)a.reverse();
+  let a=D.T.map((t,i)=>[t,i]).filter(([t])=>(!ta||t.svs.includes(ta))&&(tf=='all'||(tf=='e'?t.nb||t.kind=='bad':t.nw))&&(t.id+' '+t.name+' '+t.path).toLowerCase().includes(w));if(!tdesc)a.reverse();
   const np=Math.ceil(a.length/TPS)||1;if(f===0)tpg=0;if(f===1){const k=a.findIndex(p=>p[0]==cur);if(k>=0)tpg=Math.floor(k/TPS)}tpg=Math.min(tpg,np-1);const s=a.slice(tpg*TPS,tpg*TPS+TPS);
   $('tc').textContent=a.length;$('ts').innerHTML=(tdesc?'Mới nhất ↓':'Cũ nhất ↑');
   chips($('tfc'),[['all','Tất cả'],['e','Có lỗi'],['w','Cảnh báo']],tf,v=>{tf=v;rt(0)});
-  $('tl').innerHTML=s.map(([t,i])=>`<button type=button class="ti${cur==t?' on':''}" data-i=${i}><b title="${esc(t.name)}">${hl(t.name)}</b>${bdg(t)}<small class=tm>${MD?t.d+' ':''}${t.t} · ${t.logs.length} log${t.dur?' · '+esc(t.dur):''}</small>${t.id?`<small class=tid data-id="${esc(t.id)}" title="${esc(t.id)} — bấm để copy">${hl(short(t.id))} ${IC('copy')}</small>`:''}</button>`).join('')||'<div class=emp>Không có trace nào khớp.</div>';
+  $('tl').innerHTML=s.map(([t,i])=>`<button type=button class="ti${cur==t?' on':''}" data-i=${i}><b title="${esc(t.name)}">${hl(t.name)}</b>${bdg(t)}<small class=tm>${APPS.length>1&&t.svs.length?esc(t.svs.join(', '))+' · ':''}${MD?t.d+' ':''}${t.t} · ${t.logs.length} log${t.dur?' · '+esc(t.dur):''}</small>${t.id?`<small class=tid data-id="${esc(t.id)}" title="${esc(t.id)} — bấm để copy">${hl(short(t.id))} ${IC('copy')}</small>`:''}</button>`).join('')||'<div class=emp>Không có trace nào khớp.</div>';
   $('tpf').hidden=np<2;$('tpn').textContent=(a.length?tpg*TPS+1+'–'+(tpg*TPS+s.length):0)+' / '+a.length+' trace';$('tpp').disabled=!tpg;$('tpx').disabled=tpg>=np-1;
-  $('lose').hidden=!D.L.length;$('lose').classList.toggle('on',cur==LOOSE);$('ln').textContent=D.L.length;
+  $('lose').hidden=!LOOSE.logs.length;$('lose').classList.toggle('on',cur==LOOSE);$('ln').textContent=LOOSE.logs.length;
   document.querySelectorAll('[data-md]').forEach(b=>b.classList.toggle('on',!DSH&&(b.dataset.md=='a')==(cur==ALL)))}
 function vis(){const w=$('lq').value.trim().toLowerCase();
   return cur.logs.map((x,i)=>[x,i]).filter(([x])=>(lf=='all'||x.lv==lf)&&(!w||(x.ti+' '+x.sv+' '+x.m+' '+(x.api?JSON.stringify(x.api):'')).toLowerCase().includes(w))).sort((p,q)=>(grp&&gk(p[0]).localeCompare(gk(q[0])))||(p[0].k-q[0].k)*(lasc?1:-1))}
@@ -518,7 +522,7 @@ ${!A&&!whole&&j!=x.m?'<p class=note>Payload đã giải mã · bản gốc trong
   $('da').onclick=()=>post(x.tid?'Trong trace '+x.tid+', giải thích log lúc '+x.t+' ('+x.ti.slice(0,120)+'): ý nghĩa, nguyên nhân và cách xử lý nếu là lỗi.':'Giải thích log này: ý nghĩa, nguyên nhân và cách xử lý nếu là lỗi.\n'+x.m.slice(0,1500),'ai')}
 function sel(i){li=i;rl(1);rd();const e=$('ll').querySelector('.on');if(e)e.scrollIntoView({block:'nearest'})}
 $('tl').onclick=e=>{const c=e.target.closest('.tid');if(c)return cp(c.dataset.id,c);const b=e.target.closest('.ti');if(b)pick(D.T[b.dataset.i],1)};$('ll').onclick=e=>{const b=e.target.closest('.lr');if(b)sel(+b.dataset.i)};
-$('tq').oninput=()=>rt(0);$('lq').oninput=()=>rl(0);$('ts').onclick=()=>{tdesc=!tdesc;rt(0)};$('ls').onclick=()=>{lasc=!lasc;rl(0)};
+$('tq').oninput=()=>rt(0);$('tapp').onchange=e=>{ta=e.target.value;prep();const ok=t=>!ta||t.svs.includes(ta);pick(cur==ALL||cur==LOOSE||cur&&ok(cur)?cur:D.T.find(ok)||null,1);$('cnt').textContent=D.T.filter(ok).length+' trace · '+ALL.logs.length+' log đã tải'};$('lq').oninput=()=>rl(0);$('ts').onclick=()=>{tdesc=!tdesc;rt(0)};$('ls').onclick=()=>{lasc=!lasc;rl(0)};
 $('pgr').onclick=e=>{const b=e.target.closest('button');if(b&&!b.disabled){pg=+b.dataset.p;rl();$('ll').scrollTop=0}};
 $('tpp').onclick=()=>{tpg--;rt();$('tl').scrollTop=0};$('tpx').onclick=()=>{tpg++;rt();$('tl').scrollTop=0};
 $('lose').onclick=()=>pick(LOOSE,1);$('dx').onclick=()=>{li=-1;rl();rd()};const tfs=v=>{const c=$('g3').classList.toggle('fs',v);localStorage.glfs=c?1:'';$('vtg').textContent=c?'›':'‹';$('vtg').title=c?'Mở danh sách trace':'Đóng danh sách trace'};tfs(!!localStorage.glfs);if(!D.T.length){const k=localStorage.glfs||'';tfs(true);localStorage.glfs=k}/* không có trace nào -> tự đóng cột trace cho log rộng chỗ, không đổi lựa chọn đã lưu */$('fs').onclick=$('vtg').onclick=()=>tfs();
@@ -544,7 +548,7 @@ async function reload(){if(busy)return;busy=1;if(DSH)dash();$('rb').classList.ad
   const N=JSON.parse(m[1]),s=cur&&cur.logs[li],old=cur;D.T=N.T;D.L=N.L;prep();
   cur=old==ALL?ALL:old==LOOSE&&D.L.length?LOOSE:old&&D.T.find(t=>t.id==old.id)||D.T[0]||(D.L.length?LOOSE:null);
   li=s&&cur?cur.logs.findIndex(x=>x.k==s.k&&x.ti==s.ti&&x.tid==s.tid):-1;rt();rh();rl();rd();
-  $('cnt').textContent=D.T.length+' trace · '+ALL.logs.length+' log đã tải';trng();
+  $('cnt').textContent=D.T.filter(t=>!ta||t.svs.includes(ta)).length+' trace · '+ALL.logs.length+' log đã tải';trng();
 }catch(e){$('upd').textContent='Làm mới lỗi '+new Date().toTimeString().slice(0,8)}busy=0;$('rb').classList.remove('going')}
 // ponytail: chờ xong lượt trước rồi mới hẹn lượt sau, nên Graylog chậm thì tự giãn ra chứ không chồng truy vấn
 function auto(){clearTimeout(art);const n=+$('ar').value;$('ar').classList.toggle('on',n>0);if(n)art=setTimeout(async()=>{if(!document.hidden)await reload();auto()},n*1000)}
@@ -636,7 +640,8 @@ def pretty(v):
 
 def search_page(name, sid, title, app, tm, q):
     # trace id trần bị Graylog tách theo dấu '-' rồi OR từng mảnh -> khớp nhầm log khác; tự bọc ngoặc kép
-    code, out = gl('_search', name, sid, app, rng(tm), re.sub(r'(?<![\w"-])(%s)(?![\w"-])' % UUID, r'"\1"', q))
+    gq = re.sub(r'(?<![\w"-])(%s)(?![\w"-])' % UUID, r'"\1"', q)
+    code, out = gl('_search', name, sid, app, rng(tm), gq)
     scope = (title or ('application ' + app if app else 'Tất cả stream')) + ' · ' + tml(tm)
     head = CSS + """<title>Graylog — %s</title><body class=wide><div class=nav><a class=btn href="%s/ask?name=%s" onclick="if(history.length>1){history.back();return false}">← Quay lại</a><a class=btn id=fw hidden href="javascript:history.forward()">Tới →</a><script>const S=sessionStorage,fn=()=>+S.fwd||0;addEventListener(`pageshow`,()=>{fw.hidden=!(fn()>0||(window.navigation&&navigation.canGoForward))});addEventListener(`click`,e=>{const a=e.target.closest(`a`);if(!a)return;S.fwd=a.id==`fw`?fn()-1:a.getAttribute(`onclick`)?fn()+1:0},true);addEventListener(`submit`,e=>{if(!e.defaultPrevented)S.fwd=0});</script><a class="btn r" href="%s">🏠 Đối tác</a></div>
 %s<h2 style="margin-top:10px">%s</h2>""" % (E(name), B, urllib.parse.quote(name), B, ctx(name, scope), E(q or 'Mọi log'))
@@ -653,6 +658,10 @@ def search_page(name, sid, title, app, tm, q):
     scope_in = ''.join('<input type=hidden name=%s value="%s">' % (k, E(v)) for k, v in [('name', name), ('sid', sid), ('app', app), ('tm', tm)])
     seen, groups = set(), {}   # gộp bản trùng (Graylog lưu mỗi log 2 lần), gom theo trace id; dict giữ thứ tự mới nhất trước
     msgs = list(data.get('messages', []))
+    if data.get('total_results', 0) > len(msgs):   # bị cắt ở 500 bản ghi mới nhất: log lẻ của một service ồn đẩy hết trace của service khác ra ngoài -> lấy thêm 500 bản ghi có trace
+        c, o = gl('_search', name, sid, app, rng(tm), '(%s) AND _exists_:trace_id' % (gq or '*'))   # ponytail: vẫn chỉ 500 bản ghi có trace mới nhất; cần xa hơn thì thu hẹp thời gian hoặc thêm phân trang
+        try: msgs += json.loads(o).get('messages', []) if not c else []
+        except ValueError: pass
     ids = list(dict.fromkeys(a['Trace ID'] for a in (parse_api(str(m.get('message', {}).get('message', ''))) for m in msgs)
                              if a and re.fullmatch(r'[\w-]+', a['Trace ID'])))
     full = set(ids[:75]) if q and q not in ids else set()   # ponytail: 75 trace = 3 truy vấn; quá số đó thì trace chỉ hiện bước khớp
@@ -703,7 +712,7 @@ def search_page(name, sid, title, app, tm, q):
                   'kind': 'bad' if last['lv'] == 'e' else 'ok' if last['api'].get('Status') else 'unk', 'full': not q or q == gid or gid in full, 'logs': logs})
     L.sort(key=lambda x: x['k'])
     total, notes = data.get('total_results', 0), []
-    if total > len(data.get('messages', [])): notes.append('Đã tải %s / %s bản ghi mới nhất (đã gộp bản trùng) trong khoảng thời gian đã chọn.' % tuple('{:,}'.format(n).replace(',', '.') for n in (len(data['messages']), total)))
+    if total > len(data.get('messages', [])): notes.append('Đã tải %s / %s bản ghi mới nhất (đã gộp bản trùng) trong khoảng thời gian đã chọn, kèm 500 bản ghi có trace ID mới nhất. Muốn xem xa hơn: thu hẹp thời gian hoặc thêm từ khoá.' % tuple('{:,}'.format(n).replace(',', '.') for n in (len(data['messages']), total)))
     if len(ids) > len(full) and full: notes.append('%d trace cuối chỉ có các bước khớp từ khoá.' % (len(ids) - len(full)))
     dq = E(q or 'Tóm tắt các log trong phạm vi này: đang xử lý nghiệp vụ gì, có lỗi hay điểm bất thường nào đáng chú ý không?')
     return CSS + RCSS + """<title>Graylog — %(n)s</title><div class=hd><div class=top><a class=btn href="%(b)s/ask?name=%(nq)s" onclick="if(history.length>1){history.back();return false}" title="Quay lại form tìm">%(ib)s</a><a class=btn id=fw hidden href="javascript:history.forward()">Tới →</a><script>{const S=sessionStorage,fn=()=>+S.fwd||0;addEventListener(`pageshow`,()=>{fw.hidden=!(fn()>0||(window.navigation&&navigation.canGoForward))});addEventListener(`click`,e=>{const a=e.target.closest(`a`);if(!a)return;S.fwd=a.id==`fw`?fn()-1:a.getAttribute(`onclick`)?fn()+1:0},true);addEventListener(`submit`,e=>{if(!e.defaultPrevented)S.fwd=0});}</script>
@@ -716,7 +725,7 @@ def search_page(name, sid, title, app, tm, q):
 <div class=hr2><form method=post action="%(b)s/ask" class=sq id=sqf>%(scope)s<input type=hidden name=act value=search><button class=sb title="Tìm">%(is)s</button><input name=q value="%(q)s" placeholder="Tìm endpoint, nội dung hoặc trace ID… (để trống = mọi log)" autocomplete=off><kbd>↵</kbd></form>
 <button class="p b" form=sqf>Tìm log</button>
 <form method=post action="%(b)s/ask">%(scope)s<input type=hidden name=q value="%(dq)s"><button class=b name=act value=ai title="Nhờ AI phân tích kết quả này">%(ia)s Phân tích với AI</button></form></div>
-<div class=hr3><div class="tabs mdt"><button type=button data-md=t>Theo trace</button><button type=button data-md=a>Tất cả log</button><button type=button id=dbt>Dashboard</button></div><i class=vr></i><span id=cnt>%(nt)d trace · %(nl)d log đã tải</span><span style="flex:1"></span>
+<div class=hr3><div class="tabs mdt"><button type=button data-md=t>Theo trace</button><button type=button data-md=a>Tất cả log</button><button type=button id=dbt>Dashboard</button></div><i class=vr></i><span id=cnt>%(nt)d trace · %(nl)d log đã tải</span><select id=tapp hidden title="Chỉ xem log của một application trong số log đã tải"></select><span style="flex:1"></span>
 <span class=up>%(icl)s<span id=upd></span></span><button type=button class="b sm" id=rb title="Lấy log mới nhất với cùng phạm vi và từ khoá, giữ nguyên trace/log đang xem">%(irf)s Làm mới</button><select id=ar title="Tự làm mới sau mỗi khoảng thời gian"><option value=0>Tự động: Tắt<option value=5>Tự động: 5 giây<option value=10>Tự động: 10 giây<option value=15>Tự động: 15 giây<option value=30>Tự động: 30 giây</select></div></div>
 <form method=post action="%(b)s/ask" id=af hidden>%(scope)s<input type=hidden name=q><input type=hidden name=act></form>
 <div class=g3 id=g3>
@@ -890,28 +899,32 @@ def gear():   # nút bánh răng góc trên phải ở mọi màn hình: chọn 
 <button id=cfg type=button title="Cài đặt AI: chọn nhà cung cấp" aria-label="Cài đặt AI">⚙</button>
 <dialog id=cfd><h3>Cài đặt AI</h3><small>Phần "Phân tích với AI" sẽ hỏi nhà cung cấp chọn ở đây, qua công cụ dòng lệnh của họ trên máy này. App không giữ API key nào.</small>
 %s<input id=cfc value="%s" placeholder="vd: ollama run llama3" spellcheck=false hidden>
-<div id=cfh></div><p id=cfo></p><div class=cfb><button class=p id=cfs type=button>Lưu và kiểm tra</button><button id=cfx type=button>Đóng</button></div></dialog>
+<div id=cfh></div><p id=cfo></p><div class=cfb><button class=p id=cfs type=button>Lưu và kiểm tra</button><button id=cfx type=button>Đóng</button><small style="margin:auto 0 auto auto">Graylog %s</small></div></dialog>
 <script>(()=>{const $=i=>document.getElementById(i),d=$('cfd'),o=$('cfo'),c=$('cfc'),v=()=>d.querySelector('input[name=cfp]:checked').value,s=()=>{c.hidden=v()!='custom';$('cfh').textContent=(S[v()]||[])[0]?'':(S[v()]||[])[1]||''};let S={};
 const st=async()=>{try{S=await(await fetch('%s/aistat',{method:'POST'})).json()}catch(_){}for(const k in S){const i=$('cfi-'+k);if(S[k][0]!=null){i.textContent=S[k][0]?'đã cài':'chưa cài';i.className=S[k][0]?'y':'n'}}s()};
 const R=()=>[...d.querySelectorAll('input[name=cfp]')];$('cfg').onclick=()=>{R().forEach(r=>r.checked=r.defaultChecked);c.value=c.defaultValue;o.textContent='';s();d.showModal();st()};$('cfx').onclick=()=>d.close();d.onchange=s;s();
 $('cfs').onclick=async()=>{$('cfs').disabled=true;o.textContent='Đang lưu và hỏi thử một câu, chờ chút…';
 try{o.textContent=await(await fetch('%s/ai',{method:'POST',body:new URLSearchParams({p:v(),cmd:c.value})})).text();R().forEach(r=>r.defaultChecked=r.checked);c.defaultValue=c.value}catch(_){o.textContent='Không lưu được.'}$('cfs').disabled=false;st()}})()</script>""" % (
         ''.join('<label><input type=radio name=cfp value=%s%s><b>%s</b><small>%s</small><i id=cfi-%s></i></label>' % (k, ' checked' if k == cur else '', n, h, k) for k, n, h in AIS),
-        E(str(d.get('cmd', ''))), B, B)
+        E(str(d.get('cmd', ''))), 'v' + VERSION, B, B)
 
 
-UPD = {}   # có bản mới trên GitHub: {'d': ngày, 'm': dòng đầu commit}
+UPD = {}   # có bản phát hành mới trên GitHub: {'t': tag, 'm': dòng đầu ghi chú phát hành}
 
 
-def check_update():   # commit mới nhất của graylog_app/ trên GitHub mới hơn file đang chạy = có bản mới. Lỗi mạng thì im lặng.
-    here = os.path.dirname(os.path.abspath(__file__))
+def ver(s): return tuple(int(x) for x in re.findall(r'\d+', s))
+
+
+assert ver('v1.10.0') > ver('1.9.3')
+
+
+def check_update():   # bản phát hành (release) mới nhất trên GitHub có số lớn hơn VERSION = có bản mới. Lỗi mạng / chưa có release thì im lặng.
     while True:
         try:
-            c = json.load(urllib.request.urlopen(urllib.request.Request(
-                'https://api.github.com/repos/1551010058/graylog-app/commits?path=graylog_app&per_page=1', headers={'User-Agent': 'graylog-app'}), timeout=8))[0]['commit']
-            t = datetime.datetime.strptime(c['committer']['date'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc)
-            if t.timestamp() > max(os.path.getmtime(os.path.join(here, f)) for f in ('gl.py', 'gl-ui.py')):
-                UPD.update(d=t.astimezone().strftime('%d/%m'), m=c['message'].split('\n')[0][:90])
+            r = json.load(urllib.request.urlopen(urllib.request.Request(
+                'https://api.github.com/repos/1551010058/graylog-app/releases/latest', headers={'User-Agent': 'graylog-app'}), timeout=8))
+            if re.fullmatch(r'v?\d+(\.\d+){0,3}', r['tag_name']) and ver(r['tag_name']) > ver(VERSION):
+                UPD.update(t=r['tag_name'], m=(r.get('body') or r.get('name') or '').strip().split('\n')[0][:90])
         except Exception: pass
         time.sleep(6 * 3600)   # app mở nhiều ngày vẫn thấy bản mới
 
@@ -919,10 +932,11 @@ def check_update():   # commit mới nhất của graylog_app/ trên GitHub mớ
 def upd():
     return """<style>#upd{position:fixed;right:16px;bottom:16px;z-index:40;display:flex;gap:14px;align-items:center;max-width:min(440px,90vw);padding:12px 14px 12px 16px;border:1px solid #8886;border-radius:14px;background:Canvas;color:CanvasText;box-shadow:0 8px 24px #0005;font:14px/1.4 -apple-system,sans-serif}
 #upd b{display:block}#upd small{opacity:.65;white-space:pre-wrap;user-select:text;-webkit-user-select:text}#upd button{font:inherit;font-weight:600;padding:7px 14px;border-radius:18px;cursor:pointer;white-space:nowrap}#upd .x{border:0;background:none;color:inherit;opacity:.5;padding:0 2px;font-weight:400}#upn{position:fixed;top:9px;right:13px;z-index:31;width:11px;height:11px;border-radius:50%%;background:#e5484d;border:2px solid Canvas;pointer-events:none}</style>
-<i id=upn title="Có bản mới"></i><div id=upd hidden><div><b>Có bản mới</b><small id=upm>%s · %s</small></div><button class=p id=upb type=button>Cập nhật</button><button class=x id=upx type=button title="Để sau">×</button></div>
+<i id=upn title="Có bản mới"></i><div id=upd hidden><div><b>Có bản mới</b><small id=upm>%s</small></div><button class=p id=upb type=button>Cập nhật</button><button class=x id=upx type=button title="Để sau">×</button></div>
 <script>(()=>{const $=i=>document.getElementById(i),u=$('upd');u.hidden=!!sessionStorage.upx;$('upx').onclick=()=>{sessionStorage.upx=1;u.hidden=true};$('cfg').addEventListener('click',()=>{u.hidden=false});
-$('upb').onclick=async()=>{$('upb').disabled=true;$('upm').textContent='Đang tải bản mới, chờ chút…';let r='';try{r=await(await fetch('%s/update',{method:'POST'})).text()}catch(_){}
-if(r.trim()=='OK'){$('upm').textContent='Xong. App đang mở lại; nếu cửa sổ này còn thì đóng nó đi.';$('upb').hidden=true}else{$('upm').textContent=r||'Chưa cập nhật được.';$('upb').disabled=false}}})()</script>""" % (E(UPD['d']), E(UPD['m']), B)
+let fc='';$('upb').onclick=async()=>{$('upb').disabled=true;$('upm').textContent='Đang tải bản mới, chờ chút…';let r='';try{r=await(await fetch('%s/update',{method:'POST',body:new URLSearchParams({force:fc})})).text()}catch(_){}
+if(r.trim()=='BUSY'){fc=1;$('upm').textContent='Đang có câu AI trả lời dở. Cập nhật sẽ dừng câu đó.';$('upb').textContent='Vẫn cập nhật';$('upb').disabled=false;return}
+if(r.trim()=='OK'){$('upm').textContent='Xong. App đang mở lại; nếu cửa sổ này còn thì đóng nó đi.';$('upb').hidden=true}else{$('upm').textContent=r||'Chưa cập nhật được.';$('upb').disabled=false}}})()</script>""" % (E(UPD['t'] + (' · ' + UPD['m'] if UPD['m'] else '')), B)
 
 
 class H(http.server.BaseHTTPRequestHandler):
@@ -962,7 +976,10 @@ class H(http.server.BaseHTTPRequestHandler):
         names = [p[0] for p in partners()]
         if u.path == B + '/save':
             return self.go(msg=gl('_save', g('old'), g('name'), g('url'), g('user'), stdin=f.get('pw', [''])[0])[1])
-        if u.path == B + '/update': return self.page(gl('_update')[1])
+        if u.path == B + '/update':
+            d = os.path.join(CONF, 'ask')   # có câu AI đang chạy thì hỏi lại trước, vì cập nhật đóng app = dừng câu đó
+            if not g('force') and os.path.isdir(d) and any(x.endswith('.pid') for x in os.listdir(d)): return self.page('BUSY')
+            return self.page(gl('_update', UPD.get('t', ''))[1])
         if u.path == B + '/aistat': return self.page(gl('_aistat')[1])
         if u.path == B + '/ai': return self.page(gl('_ai', g('p'), 'check', stdin=g('cmd'))[1])   # nút bánh răng: lưu rồi hỏi thử một câu
         if u.path == B + '/test': return self.page(gl('_test', g('old'), g('url'), g('user'), stdin=f.get('pw', [''])[0])[1])

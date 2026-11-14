@@ -39,7 +39,7 @@ Sau đó:
 |---|---|
 | `graylog-app` | mở app |
 | `gl` | dòng lệnh |
-| `uv tool upgrade graylog-app` | cập nhật bản mới (rồi chạy lại `graylog-app`) |
+| `uv tool install --reinstall git+https://github.com/1551010058/graylog-app` | cập nhật tay (rồi chạy lại `graylog-app`); bình thường chỉ cần bấm "Cập nhật" trên thẻ "Có bản mới" trong app |
 | `uv tool uninstall graylog-app` | gỡ |
 
 - **macOS**: lần đầu `graylog-app` tự build `~/Applications/Graylog.app` (cần Xcode Command Line Tools: `xcode-select --install`), các lần sau mở app từ Dock như bình thường. Chưa có Command Line Tools thì tool mở bằng cửa sổ Chrome dạng app. App chạy code chép ở `~/.local/bin`.
@@ -54,7 +54,7 @@ Không dùng uv: clone repo; macOS chép các file trong `graylog_app/` vào `~/
 
 ## Phân tích với AI (tuỳ chọn)
 
-Cần cài thêm [`claude`](https://claude.com/claude-code) và [`uv`](https://docs.astral.sh/uv/). Tính năng này gửi nội dung log lên Claude.
+Mặc định dùng Claude: cần cài thêm [`claude`](https://claude.com/claude-code) và [`uv`](https://docs.astral.sh/uv/). Nút bánh răng góc trên bên phải đổi được sang OpenAI (lệnh `codex`), Gemini (lệnh `gemini`) hoặc một lệnh riêng; app dùng công cụ dòng lệnh đã đăng nhập trên máy, không giữ API key. Tính năng này gửi nội dung log lên nhà cung cấp đang chọn. OpenAI và Gemini chưa được thử trên máy thật.
 
 ## Lưu ý bảo mật
 

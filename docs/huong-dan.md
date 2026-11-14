@@ -29,7 +29,9 @@ Kết quả có ba tab.
 
 ![Theo trace](img/trace.png)
 
-Mỗi dòng bên trái là một lượt gọi (một trace id) kèm kết quả cuối, số log và thời lượng. Chọn một trace để xem từng bước bên phải; bấm một bước để xem URL, header, request body và response. Lọc được theo "Có lỗi" / "Cảnh báo".
+Mỗi dòng bên trái là một lượt gọi (một trace id) kèm kết quả cuối, số log và thời lượng. Chọn một trace để xem từng bước bên phải; bấm một bước để xem URL, header, request body và response. Lọc được theo "Có lỗi" / "Cảnh báo". Khi kết quả có từ hai application trở lên, mỗi trace ghi tên application của nó, và ô "Mọi application" cạnh số đếm cho xem riêng một application trong số log đã tải.
+
+Mỗi lần tìm tải 500 bản ghi mới nhất; nếu còn nhiều hơn, tool tải thêm 500 bản ghi có trace ID mới nhất để log lẻ của một service không che hết trace của service khác, và ghi chú cuối trang cho biết đang xem một phần.
 
 Tool nhận log API theo khuôn sau (các service ghi log khác khuôn vẫn hiện ở tab "Tất cả log"):
 
@@ -101,7 +103,7 @@ Khi hỏi tiếp trong hội thoại, có thể đính kèm hình hoặc file: b
 
 ## 6. Cập nhật
 
-Lúc mở và mỗi 6 giờ, app hỏi GitHub (`api.github.com`) xem repo có bản mới hơn bản đang chạy không. Có thì góc dưới bên phải hiện thẻ "Có bản mới"; bấm "Cập nhật" để app tự tải, cài và mở lại. Việc này cần lệnh [`uv`](https://docs.astral.sh/uv/); không có thì làm tay:
+Lúc mở và mỗi 6 giờ, app hỏi GitHub (`api.github.com`) xem có bản phát hành nào số lớn hơn bản đang chạy không (số bản đang chạy nằm ở góc hộp cài đặt, nút bánh răng). Có thì góc dưới bên phải hiện thẻ "Có bản mới" và nút bánh răng có chấm đỏ; bấm "Cập nhật" để app tự tải đúng bản đó, cài và mở lại. Nếu đang có câu AI trả lời dở, app hỏi lại trước vì cập nhật sẽ dừng câu đó. Dữ liệu trong `~/.config/gl/` và mật khẩu đã lưu không bị đụng tới. Việc này cần lệnh [`uv`](https://docs.astral.sh/uv/); không có thì làm tay:
 
 ```
 uv tool install --reinstall git+https://github.com/1551010058/graylog-app
