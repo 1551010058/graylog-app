@@ -2,8 +2,9 @@
 // Build: xem ~/.local/bin/gl-app-build
 import Cocoa
 import WebKit
+import UserNotifications
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, UNUserNotificationCenterDelegate {
     let bin = NSHomeDirectory() + "/.local/bin"
     var server: Process?
     var url: URL?
@@ -49,7 +50,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate {
             for (t, s, k) in items { m.addItem(withTitle: t, action: s, keyEquivalent: k) }
             let i = NSMenuItem(); i.submenu = m; main.addItem(i)
         }
-        menu("Graylog", [("Hide Graylog", #selector(NSApplication.hide(_:)), "h"),
+        menu("Graylog", [("Settings…", #selector(openSettings(_:)), ","),
+                         ("Hide Graylog", #selector(NSApplication.hide(_:)), "h"),
                          ("Quit Graylog", #selector(NSApplication.terminate(_:)), "q")])
         menu("File", [("New Window", #selector(newWindow(_:)), "n"),
                       ("Close Window", #selector(NSWindow.performClose(_:)), "w")])
@@ -59,10 +61,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate {
         menu("View", [("Reload", #selector(WKWebView.reload(_:)), "r"),
                       ("Back", #selector(WKWebView.goBack(_:)), "["), ("Forward", #selector(WKWebView.goForward(_:)), "]")])
         NSApp.mainMenu = main
+        UNUserNotificationCenter.current().delegate = self
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in self.checkAnswers() }
         guard startServer() else {
             let a = NSAlert(); a.messageText = "Không khởi động được gl-ui.py"; a.runModal(); NSApp.terminate(nil); return
         }
+        checkAnswers()   // áp giao diện Sáng/Tối đã lưu trước khi mở cửa sổ
         newWindow(nil)
+    }
+
+    @objc func openSettings(_ sender: Any?) {   // mở hộp cài đặt của trang (nút bánh răng)
+        if !(NSApp.keyWindow?.contentView is WKWebView) { newWindow(nil) }
+        (NSApp.keyWindow?.contentView as? WKWebView)?.evaluateJavaScript("document.getElementById('cfg')?.click()")
     }
 
     // Bấm icon trên Dock: quay lại cửa sổ đang có; chỉ tạo mới khi đã đóng hết.
@@ -74,6 +85,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate {
         let m = NSMenu(); m.addItem(withTitle: "New Window", action: #selector(newWindow(_:)), keyEquivalent: ""); return m
     }
     func applicationWillTerminate(_ n: Notification) { server?.terminate() }
+
+    // AI chạy ngầm ghi mỗi câu trả lời ra ~/.config/gl/ask/<stamp>.html. Có file mới: hiện thông báo mang tên và icon của app.
+    // (Không để trang web tự báo: WKWebView hãm timer của cửa sổ bị che nên trang không biết AI đã xong.)
+    // đang ở trong app cũng hiện thông báo (mặc định macOS giấu thông báo của app đang đứng trước)
+    func userNotificationCenter(_ c: UNUserNotificationCenter, willPresent n: UNNotification,
+                                withCompletionHandler done: @escaping (UNNotificationPresentationOptions) -> Void) { done([.banner, .sound]) }
+    var seen: Set<String>?
+    func checkAnswers() {
+        let th = ((try? String(contentsOfFile: NSHomeDirectory() + "/.config/gl/theme", encoding: .utf8)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let ap = th == "dark" ? NSAppearance(named: .darkAqua) : th == "light" ? NSAppearance(named: .aqua) : nil
+        if NSApp.appearance?.name != ap?.name { NSApp.appearance = ap }
+        let dir = NSHomeDirectory() + "/.config/gl/ask"
+        let all = (try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []
+        func note(_ id: String, _ title: String, _ body: String) {
+            let n = UNMutableNotificationContent(); n.sound = .default; n.title = title; n.body = String(body.prefix(140))
+            UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: n, trigger: nil))
+        }
+        for f in all where f.hasSuffix(".note") {   // kết quả "Lưu và kiểm tra" ở Cài đặt AI, do gl-ui.py ghi
+            let t = (try? String(contentsOfFile: dir + "/" + f, encoding: .utf8)) ?? ""
+            try? FileManager.default.removeItem(atPath: dir + "/" + f)
+            note(f, "Kiểm tra AI xong", t)
+        }
+        let now = Set(all.filter { $0.hasSuffix(".html") })
+        defer { seen = now }
+        guard let old = seen else { return }
+        for f in now.subtracting(old) {
+            let raw = (try? String(contentsOfFile: dir + "/" + f, encoding: .utf8)) ?? ""
+            var text = raw.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+            for (k, v) in [("&lt;", "<"), ("&gt;", ">"), ("&quot;", "\""), ("&#x27;", "'"), ("&amp;", "&")] { text = text.replacingOccurrences(of: k, with: v) }
+            text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression).trimmingCharacters(in: .whitespaces)
+            note(f, raw.contains("<!--fail-->") ? "AI không trả lời được" : "AI đã trả lời xong", text)
+        }
+    }
 
     // confirm()/alert() của trang (vd: hỏi lại khi Xoá)
     func webView(_ v: WKWebView, runJavaScriptConfirmPanelWithMessage m: String, initiatedByFrame f: WKFrameInfo,

@@ -328,7 +328,7 @@ def run_ai(prompt, base, sess=(), timeout=480):   # hỏi AI đang chọn, câu 
     write(base + '.in', prompt)   # câu hỏi đi qua stdin: Windows giới hạn độ dài dòng lệnh
     # với claude, stream-json ghi dần ra <stamp>.html.log để trang chat biết AI đã chạy mấy truy vấn
     with open(base + '.in', 'rb') as i, open(log, 'wb') as o, open(base + '.err', 'wb') as e:
-        try: x = subprocess.Popen(argv, shell=p == 'custom', stdin=i, stdout=o, stderr=e, cwd=ASK, env=dict(os.environ, PATH=path), **NOWIN)
+        try: x = subprocess.Popen(argv, shell=p == 'custom', stdin=i, stdout=o, stderr=e, cwd=ASK, env=dict(os.environ, PATH=path, ECC_DISABLED_HOOKS=(os.environ.get('ECC_DISABLED_HOOKS', '') + ',stop:desktop-notify').lstrip(',')), **NOWIN)   # plugin ECC của Claude Code (nếu có) không tự bắn thông báo "Claude Code"; app tự báo
         except OSError as ex: x = None; rc = 126; e.write(str(ex).encode())
         if x:
             write(base + '.pid', str(x.pid))   # ponytail: lệnh riêng chạy qua shell nên nút Dừng chỉ dừng được shell, lệnh con có thể chạy nốt

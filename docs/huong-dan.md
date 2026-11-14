@@ -88,9 +88,9 @@ Mặc định dùng Claude: cần cài [`claude`](https://claude.com/claude-code
 | Gemini | lệnh `gemini` (Gemini CLI) đã đăng nhập |
 | Tuỳ chỉnh | một lệnh bất kỳ nhận câu hỏi ở stdin và in câu trả lời ra stdout, vd `ollama run llama3` |
 
-Hộp cài đặt cho biết lệnh của từng nhà đã cài chưa và hiện sẵn lệnh cài, lệnh đăng nhập. "Lưu và kiểm tra" lưu lựa chọn rồi hỏi thử một câu thật. App không giữ API key nào. Chỉ Claude nối được phiên cũ khi hỏi tiếp; các lựa chọn khác nhận lại phần cuối hội thoại trong mỗi câu hỏi. Lệnh tuỳ chỉnh không tự truy vấn Graylog, chỉ đọc log app gửi kèm. OpenAI và Gemini chưa được thử trên máy thật.
+Hộp cài đặt (trên macOS mở được bằng menu Graylog → Settings…, ⌘,) còn có lựa chọn giao diện Sáng / Tối / Theo hệ thống. Hộp cài đặt cho biết lệnh của từng nhà đã cài chưa và hiện sẵn lệnh cài, lệnh đăng nhập. "Lưu và kiểm tra" lưu lựa chọn rồi hỏi thử một câu thật. App không giữ API key nào. Chỉ Claude nối được phiên cũ khi hỏi tiếp; các lựa chọn khác nhận lại phần cuối hội thoại trong mỗi câu hỏi. Lệnh tuỳ chỉnh không tự truy vấn Graylog, chỉ đọc log app gửi kèm. OpenAI và Gemini chưa được thử trên máy thật.
 
-Bấm "Phân tích với AI" hoặc nút "Phân tích" trên một trace rồi đặt câu hỏi. Nội dung log được gửi lên nhà cung cấp AI đang chọn; số điện thoại, CCCD và các dữ liệu tương tự được che trước khi gửi.
+Bấm "Phân tích với AI" hoặc nút "Phân tích" trên một trace rồi đặt câu hỏi. Bản macOS hiện thông báo khi AI trả lời xong (cần cho phép thông báo của Graylog trong System Settings); bản chạy trong trình duyệt báo bằng thông báo của trình duyệt nếu được cho phép. Nội dung log được gửi lên nhà cung cấp AI đang chọn; số điện thoại, CCCD và các dữ liệu tương tự được che trước khi gửi.
 
 Khi hỏi tiếp trong hội thoại, có thể đính kèm hình hoặc file: bấm 📎, dán hình (Cmd/Ctrl+V) hoặc kéo thả vào ô nhập. Tối đa 5 file mỗi câu, mỗi file 10 MB. File đính kèm được gửi nguyên vẹn lên AI, không che dữ liệu, và được lưu trong `~/.config/gl/ask/att/` cho tới khi hội thoại hết hạn 30 ngày.
 
