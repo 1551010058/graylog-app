@@ -13,7 +13,7 @@ if WIN and os.path.basename(PY).lower() == 'pythonw.exe': PY = os.path.join(os.p
 # mọi việc thật do gl.py nằm cạnh file này làm (tham số đầu của dòng lệnh là đường dẫn gl cũ, không còn dùng)
 GL = [PY] + (['-X', 'utf8'] if WIN else []) + [os.path.join(os.path.dirname(os.path.abspath(__file__)), 'gl.py')]
 NOWIN = {'creationflags': 0x08000000} if WIN else {}   # không nháy cửa sổ đen trên Windows
-VERSION = '1.1.1'   # số phiên bản duy nhất: pyproject đọc dòng này; ra bản mới = sửa số ở đây rồi tạo release v<số> trên GitHub
+VERSION = '1.1.2'   # số phiên bản duy nhất: pyproject đọc dòng này; ra bản mới = sửa số ở đây rồi tạo release v<số> trên GitHub
 CONF = os.path.expanduser('~/.config/gl')
 SEP = '   —   '
 SECS = {'15 phút': 900, '1 giờ': 3600, '2 giờ': 7200, '6 giờ': 21600, '24 giờ': 86400, '7 ngày': 604800}
@@ -423,6 +423,9 @@ body{max-width:none;margin:0;padding:10px 14px;height:100vh;box-sizing:border-bo
 .emp{padding:20px 14px;opacity:.6;font-size:13.5px}
 .dh{padding:6px 12px;border-bottom:1px solid #8883;flex-wrap:nowrap}.dh h3{margin:0;font-size:12.5px;letter-spacing:.06em}.dh span{font-size:13px;white-space:nowrap}
 #dp .bdy{padding:10px 12px;overflow:auto;flex:1;min-height:0}#dp h2{font-size:16px;margin:0 0 6px;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ti>.stp{grid-column:1/-1;border-left:3px solid var(--rd);padding-left:8px;font-size:12px;text-align:left;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}.ti>.stp b{white-space:normal}.stp.rj{border-color:var(--am)}
+.sum,.dsum{padding:8px 12px;border-radius:8px;border:1px solid #e5484d99;background:#e5484d1f;font-size:13px}.sum{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 14px;cursor:pointer}.sum.rj{border-color:#f5a52488;background:#f5a5241f}.sum>b{grid-column:1/-1}.sum>span{opacity:.65}.sum>div{overflow-wrap:anywhere}
+.dsum{margin:0 0 14px;font-size:14px}.dsum.ok{border-color:#30a46c88;background:#30a46c1f}.dsum small{display:block;opacity:.7;margin-top:2px}.dsum button{display:block;margin-top:4px;padding:0;border:0;background:none;color:var(--bl);font:inherit;cursor:pointer;text-align:left}
 .al{display:flex;gap:10px;margin:6px 0;padding:7px 10px;border-radius:8px;font-size:13px;overflow-wrap:anywhere;white-space:pre-wrap;max-height:6em;overflow:auto}.al.e{border:1px solid #e5484d99;background:#e5484d1f}.al.w{border:1px solid #f5a52488;background:#f5a5241f}
 .meta{font-size:12.5px;opacity:.75;margin:4px 0;overflow-wrap:anywhere}
 .kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 16px;font-size:13px;margin:0 0 10px}.kv>*{padding:6px 0;border-bottom:1px solid #8883}.kv span{opacity:.65}.kv b{font:12.5px ui-monospace,Menlo,monospace;overflow-wrap:anywhere}
@@ -450,11 +453,27 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 const QR=/^[\w.-]{3,}$/.test(D.q)?D.q:'',hl=s=>{s=esc(s);return QR?s.split(QR).join('<mark>'+QR+'</mark>'):s};
 const short=id=>id.length>16?id.slice(0,8)+'…'+id.slice(-4):id;
 const KD={ok:['ok','✓ Thành công'],bad:['bad','✕ Thất bại'],unk:['unk','? Chưa rõ']},LV={i:['INFO','inf'],w:['WARN','warn'],e:['ERROR','bad']};
+const SL={SUCCESS:'Thành công',BUSINESS_ERROR:'Nghiệp vụ từ chối',ERROR:'Lỗi kỹ thuật'},cls=t=>t.kind=='bad'?SL[t.st=='BUSINESS_ERROR'?t.st:'ERROR']:KD[t.kind][1].slice(2);
+// lý do hệ thống ghi: câu báo lỗi trong response (cùng field với "Lỗi là gì" của Dashboard), không có thì exception / dòng đầu
+// ponytail: chỉ đọc message ở tầng ngoài cùng của response; response lồng sâu hơn thì hiện nguyên JSON rút gọn
+const why=x=>{const A=x.api;let r=A?A.Response||'':x.m;if(A&&r)try{const j=JSON.parse(r),k=['message','toastMessage','errorReason'].find(k=>j&&j[k]);if(k)return String(j[k]);r=JSON.stringify(j)}catch(e){}return ((x.ex||'').split('\n').pop()||r.split('\n')[0]||'(log không ghi lý do)').slice(0,200)};
+// báo cáo dán vào ticket: các bước theo thời gian, bước dừng, lý do, link log
+function rep(t){const f=t.fl,d=new Date(t.logs[0].k*1000),z=n=>('0'+n).slice(-2),o=-d.getTimezoneOffset()/60,S=t.logs.filter(x=>x.api||x.lv=='e'),lk=(f||t.logs[t.logs.length-1]).lk;
+  return `[Graylog] ${t.name} — ${cls(t)}\nMôi trường: ${af.name.value} · ${z(d.getDate())}/${z(d.getMonth()+1)}/${d.getFullYear()} ${t.logs[0].t.slice(0,8)} (GMT${o<0?'':'+'}${o})\nTrace ID: ${t.id}\nCác bước đã ghi nhận:\n`+
+    S.slice(0,30).map((x,i)=>{const u=x.api?x.api.URL.replace(/^(\S+ )\w+:\/\/[^\/]+/,'$1').split('?')[0]:'';return `  ${i+1}. ${x.ti} — ${x.lv=='e'?(x.api&&x.api.Status=='BUSINESS_ERROR'?'NGHIỆP VỤ TỪ CHỐI':'LỖI KỸ THUẬT'):'Thành công'}${x.lv=='e'?' ('+[x.sv,u!=x.ti&&u].filter(Boolean).join(', ')+')':''}`}).join('\n')+(S.length>30?`\n  … và ${S.length-30} bước khác`:'')+
+    `\nKết quả thực tế: ${f?why(f):cls(t)}\nKết quả mong đợi: `+(D.u&&lk?`\nLog: ${D.u}/messages/${lk}`:'')}
+// log API -> lệnh curl (dán vào Postman: Import > Raw text). Header trong log dạng [tên:"giá trị", …] (Spring) hoặc JSON
+// bỏ header do proxy / tầng truyền tải tự sinh (gửi lại sẽ sai độ dài hoặc sai host); còn lại ghi nguyên, người dùng tự đổi giá trị
+function curl(A){const q=v=>"'"+String(v).replace(/'/g,"'\\''")+"'",[m,...u]=A.URL.split(' '),h=(A.Headers||'').trim();let H=[],b=A['Request Body']||'';
+  try{const j=JSON.parse(h);if(j&&typeof j=='object'&&!Array.isArray(j))H=Object.entries(j).map(([k,v])=>[k,Array.isArray(v)?v.join(', '):String(v)])}catch(e){}
+  if(!H.length)H=h.replace(/^\[|\]$/g,'').split(/, (?=[\w-]+:")/).map(p=>{const i=p.indexOf(':');return [p.slice(0,i),p.slice(i+1).replace(/^"|"$/g,'')]}).filter(x=>/^[\w-]+$/.test(x[0]));
+  try{b=JSON.stringify(JSON.parse(b))}catch(e){}
+  return ['curl -X '+m+' '+q(u.join(' '))].concat(H.filter(x=>!/^(content-length|host|accept-encoding|forwarded|x-forwarded-.*|x-real-ip)$/i.test(x[0])).map(x=>'-H '+q(x[0]+': '+x[1])),b&&!/^(GET|HEAD)$/.test(m)?['--data-raw '+q(b)]:[]).join(' \\\n  ')}
 const LOOSE={id:'',name:'Log không có trace ID',path:'Xem riêng, không tự gán vào trace',full:1};
 const ALL={id:'',name:'Tất cả log',path:'Mọi log trong kết quả, không gom theo trace',full:1};
 let MD=0;
 let ta='',APPS=[];   // ta: application đang lọc (trên các log đã tải)
-function prep(){D.T.forEach(t=>{t.svs=[...new Set(t.logs.map(x=>x.sv).filter(Boolean))];t.nb=t.logs.filter(x=>x.lv=='e').length;t.nw=t.logs.filter(x=>x.lv=='w').length;t.logs.forEach(x=>x.tid=t.id)});const al=[].concat(...D.T.map(t=>t.logs),D.L);APPS=[...new Set(al.map(x=>x.sv).filter(Boolean))].sort();if(!APPS.includes(ta))ta='';
+function prep(){D.T.forEach(t=>{t.svs=[...new Set(t.logs.map(x=>x.sv).filter(Boolean))];t.nb=t.logs.filter(x=>x.lv=='e').length;t.nw=t.logs.filter(x=>x.lv=='w').length;t.fl=t.kind=='bad'?t.logs.find(x=>x.lv=='e'):null;t.logs.forEach(x=>x.tid=t.id)});const al=[].concat(...D.T.map(t=>t.logs),D.L);APPS=[...new Set(al.map(x=>x.sv).filter(Boolean))].sort();if(!APPS.includes(ta))ta='';
   const f=x=>!ta||x.sv==ta,s=$('tapp');LOOSE.logs=D.L.filter(f);ALL.logs=al.filter(f);MD=new Set(al.map(x=>x.d)).size>1;
   s.hidden=APPS.length<2;s.innerHTML='<option value="">Mọi application ('+APPS.length+')'+APPS.map(a=>`<option${a==ta?' selected':''}>${esc(a)}`).join('')}
 prep();
@@ -468,7 +487,7 @@ let tpg=0;const TPS=20;
 const dec=v=>{if(typeof v=='string'&&/^\s*[{[]/.test(v)){try{return dec(JSON.parse(v))}catch(e){return v}}if(v&&typeof v=='object')for(const k in v)v[k]=dec(v[k]);return v};
 const dj=s=>{try{return JSON.stringify(dec(JSON.parse(s)),null,2)}catch(e){return s}};
 const svs=s=>s.replace(/^erp-|-service$/g,'');
-const bdg=t=>t.kind=='bad'?'<span class="bd bad">Thất bại</span>':t.nb?`<span class="bd bad">${t.nb} lỗi</span>`:t.nw?`<span class="bd warn">${t.nw} cảnh báo</span>`:`<span class="bd ${KD[t.kind][0]}">${KD[t.kind][1].slice(2)}</span>`;
+const bdg=t=>t.kind=='bad'?`<span class="bd ${t.st=='BUSINESS_ERROR'?'warn':'bad'}">${cls(t)}</span>`:t.nb?`<span class="bd bad">${t.nb} lỗi</span>`:t.nw?`<span class="bd warn">${t.nw} cảnh báo</span>`:`<span class="bd ${KD[t.kind][0]}">${KD[t.kind][1].slice(2)}</span>`;
 function code(s){if(!s)return '<div class=emp>(trống)</div>';let h='',p=0;
   if(/^\s*[{[]/.test(s)&&s.length<3e5)s.replace(/("(?:\\.|[^"\\])*")(\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g,(m,str,col,i)=>{h+=hl(s.slice(p,i))+'<span class='+(str?col?'jk':'js':/^[tfn]/.test(m)?'jb':'jn')+'>'+hl(str||m)+'</span>'+(col||'');p=i+m.length;return m});
   h+=hl(s.slice(p));const R=s.split('\n');return '<pre class=code>'+h.split('\n').map((l,i)=>{const r=R[i]||'';return '<div data-d='+r.search(/\S|$/)+'>'+(/[{[]\s*$/.test(r)&&R.length>1?'<u class=fo title="Đóng / mở"></u>':'')+l+'</div>'}).join('')+'</pre>'}
@@ -480,7 +499,7 @@ function rt(f){const w=$('tq').value.trim().toLowerCase();
   const np=Math.ceil(a.length/TPS)||1;if(f===0)tpg=0;if(f===1){const k=a.findIndex(p=>p[0]==cur);if(k>=0)tpg=Math.floor(k/TPS)}tpg=Math.min(tpg,np-1);const s=a.slice(tpg*TPS,tpg*TPS+TPS);
   $('tc').textContent=a.length;$('ts').innerHTML=(tdesc?'Mới nhất ↓':'Cũ nhất ↑');
   chips($('tfc'),[['all','Tất cả'],['e','Có lỗi'],['w','Cảnh báo']],tf,v=>{tf=v;rt(0)});
-  $('tl').innerHTML=s.map(([t,i])=>`<button type=button class="ti${cur==t?' on':''}" data-i=${i}><b title="${esc(t.name)}">${hl(t.name)}</b>${bdg(t)}${APPS.length>1&&t.svs.length?`<span class=aps title="${esc(t.svs.join('\n'))}"><span class=ap>${esc(t.svs[0])}</span>${t.svs.length>1?`<span class=ap>+${t.svs.length-1}</span>`:''}</span>`:''}<small class=tm>${MD?t.d+' ':''}${t.t} · ${t.logs.length} log${t.dur?' · '+esc(t.dur):''}</small>${t.id?`<small class=tid data-id="${esc(t.id)}" title="${esc(t.id)} — bấm để copy">${hl(t.id.slice(0,8))} ${IC('copy')}</small>`:''}</button>`).join('')||'<div class=emp>Không có trace nào khớp.</div>';
+  $('tl').innerHTML=s.map(([t,i])=>`<button type=button class="ti${cur==t?' on':''}" data-i=${i}><b title="${esc(t.name)}">${hl(t.name)}</b>${bdg(t)}${APPS.length>1&&t.svs.length?`<span class=aps title="${esc(t.svs.join('\n'))}"><span class=ap>${esc(t.svs[0])}</span>${t.svs.length>1?`<span class=ap>+${t.svs.length-1}</span>`:''}</span>`:''}<small class=tm>${MD?t.d+' ':''}${t.t} · ${t.logs.length} log${t.dur?' · '+esc(t.dur):''}</small>${t.id?`<small class=tid data-id="${esc(t.id)}" title="${esc(t.id)} — bấm để copy">${hl(t.id.slice(0,8))} ${IC('copy')}</small>`:''}${t.fl?`<small class="stp${t.st=='BUSINESS_ERROR'?' rj':''}">Dừng ở <b>${esc(t.fl.ti)}</b>: ${esc(why(t.fl))}</small>`:''}</button>`).join('')||'<div class=emp>Không có trace nào khớp.</div>';
   $('tpf').hidden=np<2;$('tpn').textContent=(a.length?tpg*TPS+1+'–'+(tpg*TPS+s.length):0)+' / '+a.length+' trace';$('tpp').disabled=!tpg;$('tpx').disabled=tpg>=np-1;
   $('lose').hidden=!LOOSE.logs.length;$('lose').classList.toggle('on',cur==LOOSE);$('ln').textContent=LOOSE.logs.length;
   document.querySelectorAll('[data-md]').forEach(b=>b.classList.toggle('on',!DSH&&(b.dataset.md=='a')==(cur==ALL)))}
@@ -491,9 +510,11 @@ function pick(t,auto){cur=t;li=-1;lf='all';$('lq').value='';
   rt(1);rh();rl(1);rd()}
 function rh(){const t=cur;$('mh').hidden=!t;if(!t)return;const nb=t.logs.filter(x=>x.lv=='e').length,nw=t.logs.filter(x=>x.lv=='w').length,ns=new Set(t.logs.map(x=>x.sv).filter(Boolean)).size;
   $('mn').innerHTML=hl(t.name);$('mn').title=t.name;
-  $('mk').innerHTML=(t.kind?`<span class="bd ${KD[t.kind][0]}">Kết quả cuối: ${KD[t.kind][1].slice(2)}</span>`:'')+(nb?`<span class="bd bad">${nb} lỗi</span>`:'')+(nw?`<span class="bd warn">${nw} cảnh báo</span>`:'');
+  $('mk').innerHTML=(t.kind?`<span class="bd ${t.st=='BUSINESS_ERROR'&&t.kind=='bad'?'warn':KD[t.kind][0]}">Kết quả cuối: ${cls(t)}</span>`:'')+(nb?`<span class="bd bad">${nb} lỗi</span>`:'')+(nw?`<span class="bd warn">${nw} cảnh báo</span>`:'');
   $('mp').innerHTML=`<span class=pth title="${esc(t.path)}">${hl(t.path)}</span>`+(t.id?`<span class=id id=cid title="Bấm để copy trace ID">Trace ID: ${hl(t.id)} ${IC('copy')}</span>`:'')+`<span>${t.logs.length} log · ${ns} dịch vụ${t.dur?' · '+esc(t.dur):''}</span>`;
-  if(t.id)$('cid').onclick=()=>cp(t.id,$('cid'));$('ma').hidden=!t.id}
+  if(t.id)$('cid').onclick=()=>cp(t.id,$('cid'));$('ma').hidden=$('mr').hidden=!t.id;$('mr').onclick=()=>cp(rep(t),$('mr'));
+  const f=t.fl,rj=t.st=='BUSINESS_ERROR';$('msum').hidden=!f;if(f){$('msum').className='sum'+(rj?' rj':'');$('msum').onclick=()=>sel(t.logs.indexOf(f));
+    $('msum').innerHTML=`<b>${esc(t.name)} chưa thành công</b><span>Bước dừng</span><div>${f.api&&f.api.Step?'#'+esc(f.api.Step)+' ':''}${esc(f.ti)}${f.sv?' ('+esc(f.sv)+')':''}</div><span>Lý do hệ thống ghi</span><div>${esc(why(f))}</div><span>Phân loại</span><div>${rj?'Nghiệp vụ từ chối — hệ thống chạy đúng luồng và từ chối yêu cầu; có phải bug hay không cần đối chiếu yêu cầu nghiệp vụ':'Lỗi kỹ thuật — hệ thống gặp sự cố khi xử lý yêu cầu, không phải một từ chối theo luật nghiệp vụ; cần dev kiểm tra'}</div>`}}
 function rl(f){if(!cur){$('ll').innerHTML='<div class=emp>Không có log nào khớp. Thử nới khoảng thời gian hoặc đổi từ khoá.</div>';$('mf').hidden=true;return}
   const A=vis(),n=c=>cur.logs.filter(x=>x.lv==c).length,np=Math.ceil(A.length/PS)||1;
   if(f===0)pg=0;if(f===1&&li>=0)pg=Math.max(0,Math.floor(A.findIndex(p=>p[1]==li)/PS));pg=Math.min(pg,np-1);const a=A.slice(pg*PS,pg*PS+PS);
@@ -514,9 +535,10 @@ function rd(){const x=cur&&cur.logs[li];$('dp').hidden=$('spl').hidden=!x;if(!x)
   $('dpv').onclick=()=>{const n=a[p-1];if(n)sel(n[1])};$('dnx').onclick=()=>{const n=a[p+1];if(n)sel(n[1])};
   $('db').innerHTML=`<h2>${hl(x.ti)}</h2>${warn?`<div class="al ${x.lv}">${x.lv=='e'?'✕':'⚠'} <span>${hl(warn)}</span></div>`:''}
 <div class=meta>${hl([x.d+' '+x.t,x.sv,A&&(A.Step?'#'+A.Step+' ':'')+A.URL].filter(Boolean).join('  ·  '))}</div>
-<div class="pr tbr"><div class=tabs>${tabs.map(t=>`<button type=button data-tab="${t[0]}" class="${t[0]==tn?'on':''}">${t[0]}</button>`).join('')}</div><span style="flex:1"></span><button type=button class="sm b" id=dc>${IC('copy')} Copy</button><button type=button class="p sm b" id=da>${IC('spark')} Phân tích</button></div>
+<div class="pr tbr"><div class=tabs>${tabs.map(t=>`<button type=button data-tab="${t[0]}" class="${t[0]==tn?'on':''}">${t[0]}</button>`).join('')}</div><span style="flex:1"></span><button type=button class="sm b" id=dc>${IC('copy')} Copy</button>${A?`<button type=button class="sm b" id=dcu title="Copy thành lệnh curl — dán vào Postman bằng Import › Raw text">${IC('copy')} Copy cURL</button>`:''}<button type=button class="p sm b" id=da>${IC('spark')} Phân tích</button></div>
 ${tv==null?`<div class=kv>${kv.map(([k,v])=>`<span>${k}</span><b${k=='Trace ID'?' class=id data-cp title="Bấm để copy"':''}>${hl(v)}</b>`).join('')}</div>${x.ex?'<div class=pl><div>exceptionMessage</div>'+code(x.ex)+'</div>':''}`:code(tv)}
 ${!A&&!whole&&j!=x.m?'<p class=note>Payload đã giải mã · bản gốc trong tab Raw</p>':''}`;
+  if(A)$('dcu').onclick=()=>cp(curl(A),$('dcu'));
   $('db').onclick=e=>{const b=e.target.closest('[data-tab],[data-cp]');if(!b)return;if(b.dataset.tab){tab=b.dataset.tab;rd()}else cp(x.tid)};
   $('dc').onclick=()=>cp(whole?raw:tv,$('dc'));
   $('da').onclick=()=>post(x.tid?'Trong trace '+x.tid+', giải thích log lúc '+x.t+' ('+x.ti.slice(0,120)+'): ý nghĩa, nguyên nhân và cách xử lý nếu là lỗi.':'Giải thích log này: ý nghĩa, nguyên nhân và cách xử lý nếu là lỗi.\n'+x.m.slice(0,1500),'ai')}
@@ -601,12 +623,16 @@ function rdash(){if(dst&&!DG.st.some(x=>x[0]==dst))dst='';sessionStorage.gldst=J
   // nhiều application: mỗi cái một thanh, bấm để xem riêng cả dashboard cho application đó
   const AP={};DAP.forEach(([p,s,n])=>{const a=AP[p]=AP[p]||{p,n:0};a[s]=n;a.n+=n});const aps=Object.values(AP).sort((x,y)=>y.n-x.n),amax=Math.max(1,...aps.map(a=>a.n)),
     aph=aps.length>1?'<h3>Theo application<small>bấm một application để xem riêng biểu đồ và bảng API của nó</small></h3><div class=dlg>'+aps.map(a=>`<button type=button class="dab${dap==a.p?' on':''}" data-ap="${esc(a.p)}"><b>${esc(a.p)}</b><span class=br>${Object.keys(a).filter(s=>s!='p'&&s!='n').sort((x,y)=>(x!='SUCCESS')-(y!='SUCCESS')||(x=='ERROR')-(y=='ERROR')).map(s=>`<u style="width:${a[s]/amax*100}%;background:${col(s)}" title="${esc(s)}: ${a[s]}"></u>`).join('')}</span><span>${a.n}<small>${(a.BUSINESS_ERROR||0)+(a.ERROR||0)} lỗi</small></span></button>`).join('')+'</div>':'';
-  $('dash').innerHTML=aph+`<h3>Status${dap?' · '+esc(dap):''}<small>${tot} log API${D.q?' khớp “'+esc(D.q)+'”':''} · bấm một status để xem các API có status đó</small></h3>`+(tot?`<div class=dch><svg class=dn viewBox="0 0 42 42">${donut}<text x=21 y=20.5 text-anchor=middle>${tot}</text><text x=21 y=25.5 text-anchor=middle class=s>log API</text></svg><div class=dlg>`+
-    DG.st.map(([s,n])=>`<button type=button class="dsb${dst==s?' on':''}" data-st="${esc(s)}" style="--c:${col(s)}"><b>${esc(s)}</b><span>${n}<small>${(n/tot*100).toFixed(1)}%</small></span></button>`).join('')+
+  // câu kết luận đầu Dashboard; chỉ hiện khi status đúng 3 nhóm quen thuộc (bảng đếm theo level/source thì không kết luận bừa)
+  const cnt=k=>(DG.st.find(x=>x[0]==k)||[0,0])[1],kE=cnt('ERROR'),kB=cnt('BUSINESS_ERROR'),EA=DG.err||[],hm=t=>tf(t)+new Date(t).toTimeString().slice(5,8),lt=Math.max(0,...Object.values(last)),le=Math.max(0,...EA.flatMap(x=>x[4].map(p=>p[3]||0))),rg=esc($('tml').textContent+(dap?' · '+dap:'')),
+    sumh=!tot||!DG.st.every(x=>SCOL[x[0]])?'':kE+kB?`<div class=dsum><b>Có ${kE} lượt gọi lỗi kỹ thuật, ${kB} lượt bị nghiệp vụ từ chối trong ${tot} lượt</b> · ${rg}${le?' · lỗi gần nhất lúc '+hm(le):''}${EA[0]?`<button type=button data-eq="${esc(sq(EA[0][0])+' AND '+EA[0][3])}">Nhiều nhất: “${esc(EA[0][1])}” ở ${esc(EA[0][4][0][1])} (${EA[0][2]} lần) — bấm để mở các log đó</button>`:''}</div>`
+      :`<div class="dsum ok"><b>Chưa ghi nhận lỗi trong log đã nhận</b> · ${rg} · ${tot} lượt gọi${lt?' · log cuối lúc '+hm(lt):''}<small>Chỉ dựa trên log: service ngừng gửi log thì không hiện ở đây.</small></div>`;
+  $('dash').innerHTML=sumh+aph+`<h3>Status${dap?' · '+esc(dap):''}<small>${tot} log API${D.q?' khớp “'+esc(D.q)+'”':''} · bấm một status để xem các API có status đó</small></h3>`+(tot?`<div class=dch><svg class=dn viewBox="0 0 42 42">${donut}<text x=21 y=20.5 text-anchor=middle>${tot}</text><text x=21 y=25.5 text-anchor=middle class=s>log API</text></svg><div class=dlg>`+
+    DG.st.map(([s,n])=>`<button type=button class="dsb${dst==s?' on':''}" data-st="${esc(s)}" style="--c:${col(s)}" title="${esc(s)}"><b>${esc(SL[s]||s)}</b><span>${n}<small>${(n/tot*100).toFixed(1)}%</small></span></button>`).join('')+
     `</div><div class=dtl><div><span>${dst?esc(dst):'Số log API'} theo thời gian</span><span>cao nhất ${hmax} / cột</span></div><svg viewBox="0 0 ${nb} 100" preserveAspectRatio=none>${bars}</svg><div><span>${T.length?tf(t0):''}</span><span>${T.length?tf(t0+(nb-1)*step):''}</span></div></div></div>`:'<div class=emp>Không có log API nào trong phạm vi này.</div>')+
     (E.length?`<h3>Lỗi là gì<small>${et} lỗi · ${E.length} loại${E.length>10?', hiện 10 loại nhiều nhất':''} · bấm một dòng để mở các log đó</small></h3><div class=dch style="grid-template-columns:132px minmax(0,1fr);align-items:start"><svg class=dn viewBox="0 0 42 42">${edn}<text x=21 y=20.5 text-anchor=middle>${et}</text><text x=21 y=25.5 text-anchor=middle class=s>lỗi</text></svg><div class=dlg>`+
-    E.slice(0,10).map(([s,w,n,q,pl],i)=>`<button type=button class=dab style="grid-template-columns:10px minmax(0,1fr) 18% 170px" data-eq="${esc(sq(s)+' AND '+q)}"><i style="width:10px;height:10px;border-radius:50%;background:${ECOL[i]}"></i><span class=ew><b style="display:block" title="${esc(w)}">${esc(w)}</b><small style="display:block;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(pl[0][0]+' · '+pl[0][1])}${pl.length>1?` (${pl[0][2]}) · và ${pl.length-1} nơi khác`:''}</small><span class=etip><i>Application</i><i>API</i><i>Số lần</i><i>Gần nhất</i>${pl.slice(0,5).map(x=>`<span class=ea>${esc(x[0])}</span><span class=ep>${esc(x[1])}</span><span class=en>${x[2]}</span><span class=et>${x[3]?tf(x[3])+new Date(x[3]).toTimeString().slice(5,8):''}</span>`).join('')}${pl.length>5?`<em>… và ${pl.length-5} nơi khác</em>`:''}</span></span><span class=br><u style="width:${n/E[0][2]*100}%;background:${ECOL[i]}"></u></span><span style="text-align:right">${n}<small>${(n/et*100).toFixed(1)}%</small><small style="color:${col(s)};opacity:1">${esc(s)}</small></span></button>`).join('')+'</div></div>':'')+
-    `<h3>${dst?'API có '+esc(dst):'Theo API'}<small>${rows.length} API · bấm tên API hoặc một con số để mở log tương ứng</small><label class=dsl>Ngưỡng chậm <select id=dsl>${SLW.map(v=>`<option value=${v}${!dsc&&v==dsl?' selected':''}>≥ ${fms(v)}`).join('')}<option value=0${dsc?' selected':''}>Nhập số…</select>${dsc?`<input id=dsn type=number min=1 max=9999999 value=${dsl}> ms`:''}</label>${dso.length?'<button type=button class=dsr id=dsr>Bỏ sắp xếp</button>':''}</h3><table class=dt><tr>${th('p','API')}${th('n','Số call')}${th('BUSINESS_ERROR','Business error')}${th('ERROR','Error')}${th('pe','% lỗi')}${th('last','Gần nhất')}${th('slow','≥ '+sl)}</tr>`+
+    E.slice(0,10).map(([s,w,n,q,pl],i)=>`<button type=button class=dab style="grid-template-columns:10px minmax(0,1fr) 18% 170px" data-eq="${esc(sq(s)+' AND '+q)}"><i style="width:10px;height:10px;border-radius:50%;background:${ECOL[i]}"></i><span class=ew><b style="display:block" title="${esc(w)}">${esc(w)}</b><small style="display:block;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(pl[0][0]+' · '+pl[0][1])}${pl.length>1?` (${pl[0][2]}) · và ${pl.length-1} nơi khác`:''}</small><span class=etip><i>Application</i><i>API</i><i>Số lần</i><i>Gần nhất</i>${pl.slice(0,5).map(x=>`<span class=ea>${esc(x[0])}</span><span class=ep>${esc(x[1])}</span><span class=en>${x[2]}</span><span class=et>${x[3]?tf(x[3])+new Date(x[3]).toTimeString().slice(5,8):''}</span>`).join('')}${pl.length>5?`<em>… và ${pl.length-5} nơi khác</em>`:''}</span></span><span class=br><u style="width:${n/E[0][2]*100}%;background:${ECOL[i]}"></u></span><span style="text-align:right">${n}<small>${(n/et*100).toFixed(1)}%</small><small style="color:${col(s)};opacity:1">${esc(SL[s]||s)}</small></span></button>`).join('')+'</div></div>':'')+
+    `<h3>${dst?'API có '+esc(dst):'Theo API'}<small>${rows.length} API · bấm tên API hoặc một con số để mở log tương ứng</small><label class=dsl>Ngưỡng chậm <select id=dsl>${SLW.map(v=>`<option value=${v}${!dsc&&v==dsl?' selected':''}>≥ ${fms(v)}`).join('')}<option value=0${dsc?' selected':''}>Nhập số…</select>${dsc?`<input id=dsn type=number min=1 max=9999999 value=${dsl}> ms`:''}</label>${dso.length?'<button type=button class=dsr id=dsr>Bỏ sắp xếp</button>':''}</h3><table class=dt><tr>${th('p','API')}${th('n','Số call')}${th('BUSINESS_ERROR','Nghiệp vụ từ chối')}${th('ERROR','Lỗi kỹ thuật')}${th('pe','% lỗi')}${th('last','Gần nhất')}${th('slow','≥ '+sl)}</tr>`+
     rows.map(a=>`<tr data-p="${esc(a.p)}"><td data-s="${dst?esc(sq(dst)):''}">${esc(a.p)}</td>${td(a,'n','')}${td(a,'BUSINESS_ERROR',esc(sq('BUSINESS_ERROR')))}${td(a,'ERROR',esc(sq('ERROR')))}<td>${a.pe.toFixed(1)}%</td><td>${a.last?tf(a.last)+new Date(a.last).toTimeString().slice(5,8):''}</td>${td(a,'slow',esc(DG.slowq))}</tr>`).join('')+'</table>';
   if($('dsl'))$('dsl').onchange=()=>{const v=+$('dsl').value;dsc=!v;if(v){localStorage.glslow=dsl=v;dash()}else{rdash();$('dsn').select()}};
   if($('dsn'))$('dsn').onchange=()=>{const v=Math.floor(+$('dsn').value);if(v>0&&v<1e7){localStorage.glslow=dsl=v;dash()}}}
@@ -670,8 +696,8 @@ def search_page(name, sid, title, app, tm, q):
         try: msgs += json.loads(o).get('messages', []) if not c else []
         except ValueError: pass
     idset = set(ids)
-    for m in msgs:
-        m = m.get('message', {})
+    for M in msgs:
+        m = M.get('message', {})
         msg = str(m.get('message', ''))
         if (m.get('timestamp'), msg) in seen: continue
         seen.add((m.get('timestamp'), msg))
@@ -696,7 +722,8 @@ def search_page(name, sid, title, app, tm, q):
             'k': ts.timestamp() if ts else 0, 't': ts.strftime('%H:%M:%S.%f')[:-3] if ts else '', 'd': ts.strftime('%d/%m') if ts else '', 'lv': lv,
             'sv': str(m.get('application') or m.get('source') or ''), 'ti': ti, 'api': api, 'm': '' if api else pretty(msg) if msg[:1] == '{' else msg,
             'ex': '\n'.join(str(m[k]) for k in ('exceptionClass', 'exceptionMessage') if m.get(k)),
-            'hit': bool(gid in full and q.lower() in msg.lower())})
+            'hit': bool(gid in full and q.lower() in msg.lower()),
+            'lk': '%s/%s' % (M['index'], m['_id']) if M.get('index') and m.get('_id') else ''})   # phần đuôi link .../messages/<index>/<id> của Graylog
     T, L = [], []
     for gid, logs in groups.items():
         logs.sort(key=lambda x: x['k'])
@@ -709,7 +736,7 @@ def search_page(name, sid, title, app, tm, q):
         method, _, url = last['api']['URL'].partition(' ')
         T.append({'id': gid, 't': logs[0]['t'][:8], 'd': logs[0]['d'], 'name': last['api'].get('Description') or urllib.parse.urlsplit(url).path or url,
                   'path': method + ' ' + (urllib.parse.urlsplit(url).path or url), 'dur': last['api'].get('Duration', ''),
-                  'kind': 'bad' if last['lv'] == 'e' else 'ok' if last['api'].get('Status') else 'unk', 'full': not q or q == gid or gid in full, 'logs': logs})
+                  'kind': 'bad' if last['lv'] == 'e' else 'ok' if last['api'].get('Status') else 'unk', 'st': last['api'].get('Status', ''), 'full': not q or q == gid or gid in full, 'logs': logs})
     L.sort(key=lambda x: x['k'])
     total, notes = data.get('total_results', 0), []
     if total > len(data.get('messages', [])): notes.append('Đã tải %s / %s bản ghi mới nhất (đã gộp bản trùng) trong khoảng thời gian đã chọn, kèm 500 bản ghi có trace ID mới nhất. Muốn xem xa hơn: thu hẹp thời gian hoặc thêm từ khoá.' % tuple('{:,}'.format(n).replace(',', '.') for n in (len(data['messages']), total)))
@@ -722,7 +749,7 @@ def search_page(name, sid, title, app, tm, q):
 <label class="sx c2" title="Đổi khoảng thời gian">%(ical)s<span class=two><b id=tml></b><small id=tmr></small></span><select id=stm>%(to)s</select></label></div>
 <div class=pop id=spop hidden><input id=sf placeholder="Lọc stream…" autocomplete=off><div id=sl></div><div class=pr2><button type=button class=sm id=sno>Bỏ chọn hết</button><span style="flex:1"></span><button type=button class="p sm" id=sok>Áp dụng</button></div><small style="opacity:.6">Không chọn stream nào = tìm trên tất cả stream.</small></div>
 <div class=pop id=tpop hidden><label>Từ<input type=datetime-local id=tf></label><label>Đến<input type=datetime-local id=tt></label><div class=pr2><button type=button class="p sm" id=tok>Áp dụng</button></div></div>
-<div class=hr2><form method=post action="%(b)s/ask" class=sq id=sqf>%(scope)s<input type=hidden name=act value=search><button class=sb title="Tìm">%(is)s</button><input name=q value="%(q)s" placeholder="Tìm endpoint, nội dung hoặc trace ID… (để trống = mọi log)" autocomplete=off><kbd>↵</kbd></form>
+<div class=hr2><form method=post action="%(b)s/ask" class=sq id=sqf>%(scope)s<input type=hidden name=act value=search><button class=sb title="Tìm">%(is)s</button><input name=q value="%(q)s" placeholder="Mã đơn, mã giao dịch, mã sản phẩm, nội dung hoặc trace ID… (để trống = mọi log)" autocomplete=off><kbd>↵</kbd></form>
 <button class="p b" form=sqf>Tìm log</button>
 <form method=post action="%(b)s/ask">%(scope)s<input type=hidden name=q value="%(dq)s"><button class=b name=act value=ai title="Nhờ AI phân tích kết quả này">%(ia)s Phân tích với AI</button></form></div>
 <div class=hr3><div class="tabs mdt"><button type=button data-md=t>Theo trace</button><button type=button data-md=a>Tất cả log</button><button type=button id=dbt>Dashboard</button></div><i class=vr></i><span id=cnt>%(nt)d trace · %(nl)d log đã tải</span><select id=tapp hidden style="flex:none;width:auto;max-width:260px" title="Chỉ xem log của một application trong số log đã tải"></select><span style="flex:1"></span>
@@ -735,7 +762,7 @@ def search_page(name, sid, title, app, tm, q):
 <button type=button class=lose id=lose>%(il)s<span>Log không có trace ID</span><b class=pill id=ln></b>›</button>
 <div class=pf id=tpf><button type=button class=sm id=tpp>‹</button><span id=tpn></span><button type=button class=sm id=tpx>›</button></div></section>
 <div class=vsp id=vsp title="Kéo để đổi độ rộng"><button type=button id=vtg></button></div><div class=rc id=rc>
-<section class="pane mp"><div class=ph id=mh><div class=pr><h2 id=mn></h2><span class=pr id=mk></span><span style="flex:1"></span><button type=button class="p b sm" id=ma title="Nhờ AI phân tích trace này">%(ia)s Phân tích</button><button type=button class="sm b" id=fs title="Phóng to / thu nhỏ vùng log">%(ifs)s</button></div><div class="sub pr" id=mp></div></div>
+<section class="pane mp"><div class=ph id=mh><div class=pr><h2 id=mn></h2><span class=pr id=mk></span><span style="flex:1"></span><button type=button class="p b sm" id=ma title="Nhờ AI phân tích trace này">%(ia)s Phân tích</button><button type=button class="sm b" id=mr title="Copy bản tóm tắt trace này để dán vào ticket / chat">%(ic)s Copy báo cáo</button><button type=button class="sm b" id=fs title="Phóng to / thu nhỏ vùng log">%(ifs)s</button></div><div class="sub pr" id=mp></div><div id=msum hidden title="Bấm để mở log của bước dừng"></div></div>
 <div class="pr tb"><b>Log trong trace</b><div class=fi>%(is)s<input id=lq placeholder="Tìm trong trace này…" autocomplete=off></div><div class=fc id=lfc></div><button type=button class="sm b" id=ls></button></div>
 <div class="lr lh"><span>Thời gian</span><span>Mức log</span><span>Nội dung</span><span class=ap><u class=rz id=rz title="Kéo để đổi độ rộng cột"></u>Application</span><span class=du>Thời lượng</span></div>
 <div class=sc id=ll></div><div class=pf id=mf><span id=mfn></span><button type=button class="sm b" id=more>Tải cả trace</button><div id=pgr></div></div></section>
@@ -751,7 +778,7 @@ def search_page(name, sid, title, app, tm, q):
         'iu': ico('user'), 'icl': ico('clock'), 'scope': scope_in, 'q': E(q), 'dq': dq, 'nt': len(T), 'nl': len(seen),
         'ft': '<div class=ft><span>%s</span><a id=nar>Thu hẹp thời gian</a></div>' % E(' '.join(notes)) if notes else '', 'ifs': ico('full'),
         'ib': ico('back'), 'is': ico('search'), 'ia': ico('spark'), 'il': ico('link'), 'ix': ico('x'), 'ic': ico('copy'), 'io': ico('sort'),
-        'data': json.dumps({'q': q, 'T': T, 'L': L}, ensure_ascii=False).replace('</', '<\\/')} + RJS
+        'data': json.dumps({'q': q, 'T': T, 'L': L, 'u': next((p[1] for p in partners() if p[0] == name), '').rstrip('/')}, ensure_ascii=False).replace('</', '<\\/')} + RJS
 
 
 CHAT = """<style>

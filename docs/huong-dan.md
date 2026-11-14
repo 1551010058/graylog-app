@@ -29,7 +29,12 @@ Kết quả có ba tab.
 
 ![Theo trace](img/trace.png)
 
-Mỗi dòng bên trái là một lượt gọi (một trace id) kèm kết quả cuối, số log và thời lượng. Chọn một trace để xem từng bước bên phải; bấm một bước để xem URL, header, request body và response. Lọc được theo "Có lỗi" / "Cảnh báo". Khi kết quả có từ hai application trở lên, mỗi trace ghi tên application của nó, và ô "Mọi application" cạnh số đếm cho xem riêng một application trong số log đã tải.
+Mỗi dòng bên trái là một lượt gọi (một trace id) kèm kết quả cuối, số log và thời lượng. Chọn một trace để xem từng bước bên phải; bấm một bước để xem URL, header, request body và response. Lọc được theo "Có lỗi" / "Cảnh báo".
+
+Trace không thành công được ghi là "Nghiệp vụ từ chối" (status `BUSINESS_ERROR`: hệ thống chạy đúng luồng và từ chối yêu cầu) hoặc "Lỗi kỹ thuật" (status `ERROR`), kèm dòng "Dừng ở (bước): (lý do)". Mở trace ra có khung tóm tắt bước dừng, lý do hệ thống ghi và phân loại; bấm khung để tới log của bước đó. Bước dừng là log lỗi sớm nhất của trace; lý do lấy từ `message`, `toastMessage` hoặc `errorReason` trong response, không có thì lấy exception.
+
+- **Copy báo cáo**: copy bản tóm tắt trace (môi trường, thời gian, trace ID, các bước, kết quả thực tế, link log Graylog) để dán vào ticket.
+- **Copy cURL** (trong chi tiết một log API): copy request thành lệnh `curl`, dán vào Postman bằng Import. Header trong log được ghi nguyên, kể cả `authorization`; chỉ bỏ các header do proxy sinh ra (`content-length`, `host`, `accept-encoding`, `forwarded`, `x-forwarded-*`, `x-real-ip`). Khi kết quả có từ hai application trở lên, mỗi trace ghi tên application của nó, và ô "Mọi application" cạnh số đếm cho xem riêng một application trong số log đã tải.
 
 Mỗi lần tìm tải 500 bản ghi mới nhất; nếu còn nhiều hơn, tool tải thêm 500 bản ghi có trace ID mới nhất để log lẻ của một service không che hết trace của service khác, và ghi chú cuối trang cho biết đang xem một phần.
 
@@ -58,6 +63,7 @@ Mọi log theo thứ tự thời gian, kể cả log không thuộc trace nào.
 
 Số liệu do Graylog đếm trên toàn bộ phạm vi đang chọn, không phải chỉ trên các log đã tải.
 
+- **Câu kết luận** ở đầu: số lượt gọi lỗi kỹ thuật và bị nghiệp vụ từ chối, lỗi gần nhất lúc nào, lỗi nhiều nhất (bấm để mở các log đó); không có lỗi thì ghi "Chưa ghi nhận lỗi trong log đã nhận". Kết luận chỉ dựa trên log: service ngừng gửi log thì không hiện ở đây.
 - **Theo application**: hiện khi có từ hai application trở lên. Bấm một application để xem riêng biểu đồ và bảng API của nó.
 - **Status**: bấm một status để chỉ xem các API có status đó.
 - **Lỗi là gì**: biểu đồ tròn và danh sách 10 loại lỗi nhiều nhất, mỗi loại kèm application và API bị nhiều nhất (rê chuột vào dòng đó để xem 5 nơi bị nhiều nhất, kèm số lần và lần gần nhất). Lỗi được gộp theo câu báo lỗi trong response (`message`, `toastMessage` hoặc `errorReason`); lỗi không có response thì gộp theo tên exception. Bấm một dòng để mở các log đó. Phần này cần field `response_body` / `api_exception`, tức chỉ có với log theo khuôn `api_status`.
