@@ -2,6 +2,8 @@
 
 Ứng dụng máy tính (macOS, Windows) để làm việc với Graylog của nhiều đối tác: lưu đăng nhập, tìm log theo trace, xem Dashboard theo API, và hỏi AI về sự cố.
 
+Trang giới thiệu: https://linhmai.online/graylog
+
 ![Dashboard](docs/img/dashboard.png)
 
 ## Tính năng
