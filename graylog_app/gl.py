@@ -34,6 +34,7 @@ Nội dung:
 - Ưu tiên ý nghĩa nghiệp vụ: sản phẩm nào, khuyến mãi nào, giảm bao nhiêu, giá cuối, thành công hay lỗi, lỗi vì sao. Chi tiết kỹ thuật chỉ đưa khi nó giải thích kết quả.
 - Tối đa 3 mục, cả câu trả lời khoảng 200 từ trở xuống, trừ khi người hỏi yêu cầu chi tiết/đầy đủ/request/response nguyên văn.
 - Không chắc thì nói thẳng là log không ghi, đừng suy đoán.
+- Khi trace/log là một đơn hàng hoặc giỏ hàng: mục ĐẦU TIÊN là h3 'Đơn hàng' nêu mua gì (mã + tên sản phẩm), số lượng, đơn giá, khuyến mãi/giảm bao nhiêu, tổng tiền, thanh toán; sau đó mới tới các bước xử lý. Từ 2 sản phẩm trở lên dùng table: sản phẩm (mã + tên), số lượng, đơn giá, giảm, thành tiền.
 
 Độ bao phủ (bắt buộc):
 - Trước khi trả lời phải biết TỔNG số log khớp trong phạm vi. Nếu một lần tìm chưa trả hết thì đọc tiếp bằng offset/next_offset, hoặc gom nhóm theo trace id / endpoint (group_by), cho tới khi bao phủ toàn bộ khoảng thời gian — không chỉ đọc mấy log mới nhất.
@@ -302,14 +303,14 @@ def ai_help(p):   # hướng dẫn cài + đăng nhập, hiện ở hộp Cài �
             'Lệnh npm cần Node.js (https://nodejs.org). Bước nào làm rồi thì bỏ qua.' % HELP[p])
 
 
-def ai_conf():   # -> (nhà cung cấp, lệnh riêng)
+def ai_conf():   # -> (nhà cung cấp, lệnh riêng, model của claude: sonnet | haiku | opus | fable | default)
     try: d = json.loads(read(os.path.join(CONF, 'ai.json')))
     except (OSError, ValueError): d = {}
-    return (d.get('p') if d.get('p') in AIS else 'claude'), str(d.get('cmd', ''))
+    return (d.get('p') if d.get('p') in AIS else 'claude'), str(d.get('cmd', '')), d.get('model') if d.get('model') in ('haiku', 'opus', 'fable', 'default') else 'sonnet'
 
 
 def run_ai(prompt, base, sess=(), timeout=480):   # hỏi AI đang chọn, câu hỏi qua stdin -> (mã thoát, câu trả lời, lỗi)
-    p, cmd = ai_conf(); path = login_path(); log = base + '.html.log'; os.makedirs(ASK, exist_ok=True)
+    p, cmd, model = ai_conf(); path = login_path(); log = base + '.html.log'; os.makedirs(ASK, exist_ok=True)
     exe = cmd if p == 'custom' else shutil.which(p, path=path)
     if not exe:
         return 127, '', ('Chưa nhập lệnh riêng ở Cài đặt AI (nút bánh răng).' if p == 'custom' else
@@ -317,6 +318,8 @@ def run_ai(prompt, base, sess=(), timeout=480):   # hỏi AI đang chọn, câu 
     mcp = PYX + [ME, 'mcp']
     if p == 'claude':
         argv = [exe, '-p'] + list(sess) + ['--mcp-config', mcp_conf(), '--strict-mcp-config', '--allowedTools', 'mcp__graylog', '--output-format', 'stream-json', '--verbose']
+        # đo cùng một câu hỏi: model mặc định 83 giây, sonnet 35 giây, vẫn đọc đủ log; nên sonnet là mặc định, đổi ở Cài đặt AI (default = model mặc định của Claude Code)
+        if model != 'default': argv += ['--model', model]
     elif p == 'codex':   # chỉ đọc; câu trả lời cuối ghi ra <base>.ans
         argv = [exe, 'exec', '-', '--skip-git-repo-check', '--sandbox', 'read-only', '-o', base + '.ans',
                 '-c', 'mcp_servers.graylog.command=' + json.dumps(mcp[0]), '-c', 'mcp_servers.graylog.args=' + json.dumps(mcp[1:])]
@@ -580,8 +583,8 @@ def main(a):
     elif c == '_run': run_job(a[1])
     elif c == '_ai':   # _ai <nhà cung cấp> [check], lệnh riêng ở stdin — lưu Cài đặt AI; có check thì hỏi thử một câu thật
         if a[1] not in AIS: return 1
-        os.makedirs(CONF, exist_ok=True); write(os.path.join(CONF, 'ai.json'), json.dumps({'p': a[1], 'cmd': sys.stdin.read().strip()}))
-        if a[2:] != ['check']: print('Đã lưu: ' + AIS[a[1]]); return 0
+        os.makedirs(CONF, exist_ok=True); write(os.path.join(CONF, 'ai.json'), json.dumps({'p': a[1], 'cmd': sys.stdin.read().strip(), 'model': a[3] if a[3:4] else ai_conf()[2]}))
+        if a[2:3] != ['check']: print('Đã lưu: ' + AIS[a[1]]); return 0
         rc, ans, err = run_ai('Trả lời đúng một chữ: OK', os.path.join(ASK, '.check-%d' % os.getpid()), timeout=120)
         try: os.remove(os.path.join(ASK, '.check-%d.html.log' % os.getpid()))
         except OSError: pass

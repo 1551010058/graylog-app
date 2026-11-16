@@ -13,7 +13,7 @@ if WIN and os.path.basename(PY).lower() == 'pythonw.exe': PY = os.path.join(os.p
 # mọi việc thật do gl.py nằm cạnh file này làm (tham số đầu của dòng lệnh là đường dẫn gl cũ, không còn dùng)
 GL = [PY] + (['-X', 'utf8'] if WIN else []) + [os.path.join(os.path.dirname(os.path.abspath(__file__)), 'gl.py')]
 NOWIN = {'creationflags': 0x08000000} if WIN else {}   # không nháy cửa sổ đen trên Windows
-VERSION = '1.1.2'   # số phiên bản duy nhất: pyproject đọc dòng này; ra bản mới = sửa số ở đây rồi tạo release v<số> trên GitHub
+VERSION = '1.1.3'   # số phiên bản duy nhất: pyproject đọc dòng này; ra bản mới = sửa số ở đây rồi tạo release v<số> trên GitHub
 CONF = os.path.expanduser('~/.config/gl')
 SEP = '   —   '
 SECS = {'15 phút': 900, '1 giờ': 3600, '2 giờ': 7200, '6 giờ': 21600, '24 giờ': 86400, '7 ngày': 604800}
@@ -247,6 +247,33 @@ def searches(name, item=None):
         json.dump(d, open(f + '.tmp', 'w'), ensure_ascii=False); os.replace(f + '.tmp', f)
     return [x[:6] for x in l]
 
+def favs(name, item=None):
+    # mục ưa thích của từng đối tác: [sid, tên stream, app, tm, q], mới nhất trước, không tự xoá; có item -> bật / tắt mục đó
+    f = os.path.join(CONF, 'favorites.json')
+    try: d = json.load(open(f))
+    except (OSError, ValueError): d = {}
+    l, k = d.get(name, []), lambda x: [x[0]] + x[2:5]   # so khớp không tính tên stream (stream có thể bị đổi tên)
+    if item:
+        d[name] = l = [x for x in l if k(x) != k(item)] if any(k(x) == k(item) for x in l) else [item] + l
+        os.makedirs(CONF, exist_ok=True); json.dump(d, open(f + '.tmp', 'w'), ensure_ascii=False); os.replace(f + '.tmp', f)
+    return l
+
+
+def rerun(name, rows, rm=''):   # rm: thêm nút ✕ gỡ khỏi Ưa thích; mỗi dòng [sid, tên stream, app, tm, q, ghi chú] -> 1 nút bấm là tìm lại đúng phạm vi + câu tìm đó
+    return ''.join('<form method=post action="%s/ask" style="display:flex;align-items:center;gap:2px"><input type=hidden name=name value="%s"><input type=hidden name=sid value="%s"><input type=hidden name=app value="%s">'
+                   '<input type=hidden name=tm value="%s"><input type=hidden name=q value="%s"><button class=h title="Tìm lại"><b>%s</b><small>%s · %s%s</small></button>%s</form>'
+                   % (B, E(name), E(sid), E(app), E(tm), E(q), E(q) or '(mọi log)', E(title or app or 'Tất cả stream'), E(tml(tm) if tm in SECS or span(tm) else tm), E(at and ' · ' + at), rm)
+                   for sid, title, app, tm, q, at in rows)
+
+
+# nút ✕ trên từng mục Ưa thích: gỡ mục đó; ở Log Explorer thì hỏi lại sao + danh sách của trang đang xem (sự kiện pageshow), ở trang chọn phạm vi thì bỏ dòng đó
+FAVX = """<button type=button title="Gỡ khỏi Ưa thích" style="flex:none;border:0;padding:6px 8px;opacity:.6" onclick="const f=this.closest('form');fetch('%s/fav',{method:'POST',body:new URLSearchParams([...new FormData(f),['op','t']])}).then(r=>r.text()).then(()=>{if(window.fv)window.dispatchEvent(new Event('pageshow'));else f.remove()})">✕</button>""" % B
+
+FAVCSS = """<style>#fv{display:inline-flex;gap:6px;align-items:center}#fvb{padding:6px 9px;font-size:16px;line-height:1;color:#f5b301}#fv details{position:relative}
+#fv summary{list-style:none;cursor:pointer;padding:6px 9px;border:1px solid #8888;border-radius:8px;white-space:nowrap}#fv summary::-webkit-details-marker{display:none}
+#fv details>div{position:absolute;z-index:20;top:calc(100% + 6px);right:0;width:340px;max-height:60vh;overflow:auto;background:Canvas;border:1px solid #8886;border-radius:10px;padding:6px;box-shadow:0 4px 16px #0005}
+#fv form{margin:0}#fv .h{display:block;flex:1;min-width:0;box-sizing:border-box;text-align:left;white-space:normal;border:0;padding:7px 10px}#fv .h:hover{background:#8882}
+#fv .h b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#fv .h small{display:block;opacity:.6;font-weight:400}</style>"""
 
 ACSS = """<style>
 [hidden]{display:none!important}
@@ -274,7 +301,7 @@ ACSS = """<style>
 .kvs{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px 14px;font-size:13.5px}.kvs span{opacity:.6}.kvs b{text-align:right;font-weight:600;overflow:hidden;text-overflow:ellipsis}
 .rt{display:flex;gap:16px;border-bottom:1px solid #8883;margin-bottom:10px}.rt button{border:0;border-radius:0;padding:6px 0;opacity:.65;font-size:13.5px}.rt .on{opacity:1;font-weight:600;box-shadow:inset 0 -2px #2f6fed}
 .rl{max-height:420px;overflow:auto;margin-top:6px}.rl form{margin:0}.rl .no{font-size:13px;opacity:.6;padding:8px 2px}
-.h[hidden]{display:none}.h{display:block;width:100%;box-sizing:border-box;text-align:left;white-space:normal;padding:8px 10px;margin:6px 0;border:1px solid #8884;border-radius:8px;color:inherit;text-decoration:none;font-size:13.5px}
+.h[hidden]{display:none}.h{display:block;width:100%;min-width:0;box-sizing:border-box;text-align:left;white-space:normal;padding:8px 10px;margin:6px 0;border:1px solid #8884;border-radius:8px;color:inherit;text-decoration:none;font-size:13.5px}
 .h:hover{background:#8882}.h b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.h small{display:block;opacity:.6;margin-top:2px;font-weight:400}
 </style>"""
 
@@ -284,10 +311,8 @@ def ask_page(name, streams):
     streams = sorted([[t, i, '', u.get('s:' + i, 0)] for t, i in streams] +
                      [[k[2:], '', k[2:], c] for k, c in u.items() if k.startswith('a:')], key=lambda x: -x[3])
     hist = history(name)
-    srch = ''.join('<form method=post><input type=hidden name=name value="%s"><input type=hidden name=sid value="%s"><input type=hidden name=app value="%s">'
-                   '<input type=hidden name=tm value="%s"><input type=hidden name=q value="%s"><button class=h title="Tìm lại"><b>%s</b><small>%s · %s · %s</small></button></form>'
-                   % (E(name), E(sid), E(app), E(tm), E(q), E(q) or '(mọi log)', E(title or app or 'Tất cả stream'), E(tml(tm) if tm in SECS or span(tm) else tm), E(at))
-                   for sid, title, app, tm, q, at in searches(name))
+    srch = rerun(name, searches(name))
+    fav = rerun(name, [x + [''] for x in favs(name)], FAVX)
     t = """<title>Graylog — @n@</title><div class=top><div class=bc><a href="@b@">Đối tác</a> &nbsp;/&nbsp; <b>@n@</b></div><a class=btn id=fw hidden href="javascript:history.forward()">Tới →</a><script>{const S=sessionStorage,fn=()=>+S.fwd||0;addEventListener(`pageshow`,()=>{fw.hidden=!(fn()>0||(window.navigation&&navigation.canGoForward))});addEventListener(`click`,e=>{const a=e.target.closest(`a`);if(!a)return;S.fwd=a.id==`fw`?fn()-1:a.getAttribute(`onclick`)?fn()+1:0},true);addEventListener(`submit`,e=>{if(!e.defaultPrevented)S.fwd=0});}</script><button type=button id=og title="Mở Graylog trên trình duyệt">@io@ Mở Graylog</button></div>
 <div class="lay on"><form method=post id=f class=ls><input type=hidden name=name value="@n@"><input type=hidden name=sid id=sid><input type=hidden name=app id=app><input type=hidden name=tm id=tm><input type=hidden name=act id=act>
 <div class=hdr><div><h1 id=hh></h1><p class=sub>Tìm log theo phạm vi rõ ràng hoặc đặt câu hỏi cho AI.</p></div>
@@ -312,7 +337,7 @@ source:pos-*          dấu * thay cho phần còn lại</pre></details></div>
 <div class=fo><span id=sum></span><kbd>⌘ Enter</kbd><button class="p go" id=go></button></div>
 </form>
 <aside class=sd><div class=cd><h3>Phạm vi đã chọn</h3><div class=kvs><span>Đối tác</span><b>@n@</b><span>Loại lọc</span><b id=v1></b><span id=v2k></span><b id=v2></b><span>Khoảng thời gian</span><b id=v3></b></div><p>Kết quả mở ngay trong cửa sổ này.</p></div>
-<div class=cd><h3>Gần đây <small style="font-weight:400;opacity:.55;font-size:12px">· giữ 30 ngày, cũ hơn tự xoá</small></h3><div class=rt><button type=button data-r=0>Tìm kiếm (@ns@)</button><button type=button data-r=1>Hội thoại AI (@nh@)</button></div>
+@fav@<div class=cd><h3>Gần đây <small style="font-weight:400;opacity:.55;font-size:12px">· giữ 30 ngày, cũ hơn tự xoá</small></h3><div class=rt><button type=button data-r=0>Tìm kiếm (@ns@)</button><button type=button data-r=1>Hội thoại AI (@nh@)</button></div>
 <input id=hs placeholder="Lọc trong danh sách…" autocomplete=off>
 <div class=rl id=r0>@srch@</div><div class=rl id=r1>@hist@</div></div>
 <div class=cd id=tip><h3>@ia@ Cần giải thích log?</h3><p style="margin:0 0 12px">Chuyển sang Hỏi AI để mô tả vấn đề bằng ngôn ngữ tự nhiên.</p><button type=button data-m=1>Hỏi AI</button></div></aside></div>
@@ -370,7 +395,7 @@ addEventListener('pageshow',()=>{back();setTimeout(back,0);setTimeout(back,150)}
     for key, v in {'b': B, 'n': E(name), 'io': ico('out'), 'is': ico('search'), 'ia': ico('spark'), 'ix': ico('x'), 'iw': ico('arrow'),
                    'pts': ''.join('<option%s>%s</option>' % (' selected' if p[0] == name else '', E(p[0])) for p in partners()),
                    'tcs': ''.join('<button type=button data-t="%s">%s</button>' % (x, x) for x in TIMES),
-                   'ns': str(len(searches(name))), 'nh': str(len(hist)), 'srch': srch, 'hist': ''.join(hist),
+                   'ns': str(len(searches(name))), 'fav': '<div class=cd><h3>⭐ Ưa thích</h3><div style="max-height:240px;overflow:auto">%s</div></div>' % (fav or '<p style="margin:0;opacity:.65">Chưa có mục nào. Ở màn hình kết quả (Log Explorer), bấm ☆ cạnh ô thời gian để lưu các stream + câu tìm đang xem; bấm ★ lần nữa để gỡ.</p>'), 'nh': str(len(hist)), 'srch': srch, 'hist': ''.join(hist),
                    'secs': json.dumps(SECS, ensure_ascii=False), 'nj': json.dumps(name), 'bj': json.dumps(B),
                    's': json.dumps(streams, ensure_ascii=False).replace('</', '<\\/')}.items():
         t = t.replace('@%s@' % key, v)
@@ -386,7 +411,7 @@ body{max-width:none;margin:0;padding:10px 14px;height:100vh;box-sizing:border-bo
 .sx::after{content:"";position:absolute;right:10px;top:50%;width:6px;height:6px;border-right:1.5px solid;border-bottom:1.5px solid;transform:translateY(-70%) rotate(45deg);opacity:.7}
 .sx select{-webkit-appearance:none;appearance:none;background:none;border:0;color:inherit;font:inherit;font-weight:600;padding:0;margin:0;width:auto;cursor:pointer;outline:0}
 .c1,.c2{flex:0 1 auto}.sx{--c:#8b8b8b;border-color:color-mix(in srgb,var(--c) 45%,transparent);background:color-mix(in srgb,var(--c) 11%,transparent)}.sx:hover{border-color:var(--c);background:color-mix(in srgb,var(--c) 20%,transparent)}.sx>svg,.sx::after,.sx .two small{color:var(--c);opacity:1}.sx.c0{--c:var(--bl)}.sx.c1{--c:var(--pu)}.sx.c2{--c:var(--am)}.two{display:flex;flex-direction:column;line-height:1.25;min-width:0}.two small{font-size:11.5px;opacity:.65}.two b{font-weight:600;overflow:hidden;text-overflow:ellipsis}.c2 select{position:absolute;inset:0;width:100%;height:100%;opacity:0}
-.pop{position:fixed;z-index:30;background:Canvas;border:1px solid #8886;border-radius:12px;padding:12px;box-shadow:0 14px 44px #000a;width:340px;display:flex;flex-direction:column;gap:10px}.pop label{font-size:13px}#sl{max-height:46vh;overflow:auto;display:flex;flex-direction:column}#sl label{display:flex;gap:8px;padding:6px 4px;font-size:13.5px;cursor:pointer;align-items:center;border-radius:6px}#sl label:hover{background:#8882}#sl input{width:auto;margin:0}.pr2{display:flex;gap:8px;align-items:center}#dash{flex:1;overflow:auto;padding:16px 18px;gap:14px}#dash h3{margin:0;font-size:14px}#dash h3 small{font-weight:400;opacity:.6;margin-left:8px}.dch{display:grid;grid-template-columns:132px 250px minmax(0,1fr);gap:18px;align-items:center}.dn{width:132px}.dn circle{cursor:pointer}.dn text{fill:currentColor;font-size:6.5px;font-weight:700}.dn text.s{font-size:3px;font-weight:400;opacity:.6}.dlg{display:flex;flex-direction:column;gap:2px}.dab{all:unset;display:grid;grid-template-columns:230px minmax(0,1fr) auto;gap:14px;align-items:center;box-sizing:border-box;width:100%;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;border:1px solid transparent}.dab:hover{background:#8882}.dab.on{border-color:#5b93ff;background:#5b93ff1f}.dab b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dab .br{display:flex;height:10px;border-radius:3px;overflow:hidden}.dab u{display:block}.ew{min-width:0;position:relative}.etip{display:none;position:absolute;left:0;top:100%;z-index:20;width:max-content;max-width:min(760px,70vw);grid-template-columns:auto minmax(0,1fr) auto auto;gap:6px 14px;align-items:baseline;padding:10px 14px;background:Canvas;border:1px solid #8886;border-radius:10px;box-shadow:0 10px 30px #0008;font-size:12.5px;cursor:default}.ew:hover .etip{display:grid}.etip i{font-style:normal;font-size:11px;opacity:.55;text-transform:uppercase;letter-spacing:.04em}.etip .ea{color:var(--bl);font-weight:600}.etip .ep{font-family:ui-monospace,Menlo,monospace;font-size:12px;word-break:break-all}.etip .en{font-weight:700;text-align:right;color:var(--am)}.etip .et{opacity:.75;white-space:nowrap;font-variant-numeric:tabular-nums}.etip em{grid-column:1/-1;font-style:normal;opacity:.6}.dab span:last-child{font-variant-numeric:tabular-nums}.dab small{opacity:.6;margin-left:6px}.dsb{all:unset;display:flex;gap:10px;align-items:center;box-sizing:border-box;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;border:1px solid transparent}.dsb:hover{background:#8882}.dsb.on{border-color:var(--c);background:color-mix(in srgb,var(--c) 12%,transparent)}.dsb b{color:var(--c);flex:1}.dsb b::before{content:"";display:inline-block;width:9px;height:9px;border-radius:3px;background:var(--c);margin-right:8px}.dsb span{font-variant-numeric:tabular-nums}.dsb span small{opacity:.6;margin-left:6px}.dtl{display:flex;flex-direction:column;gap:4px;min-width:0}.dtl div{display:flex;justify-content:space-between;font-size:11.5px;color:GrayText}.dtl svg{height:104px;width:100%;border-bottom:1px solid #8885}.dsl{float:right;font-size:12.5px;font-weight:400;color:GrayText}.dsl select{width:auto;font-size:12.5px;padding:2px 6px;margin-left:6px}.dsl input{width:84px;font-size:12.5px;padding:2px 6px;margin:0 4px 0 6px}.dt th i{font-style:normal;opacity:.45}.dt th sup{font-size:9px;margin-left:1px}.dsr{all:unset;float:right;cursor:pointer;color:var(--bl);font-size:12.5px;font-weight:400;margin:3px 16px 0 0}.dsr:hover{text-decoration:underline}.dt{width:100%;border-collapse:collapse;font-size:13px}.dt th{text-align:right;font-size:12px;font-weight:600;color:GrayText;padding:7px 10px;border-bottom:1px solid #8884;cursor:pointer;white-space:nowrap;position:sticky;top:-16px;background:light-dark(#fff,Canvas)}.dt th:first-child,.dt td:first-child{text-align:left}.dt th.on{color:var(--bl)}.dt th:first-child{width:100%}.dt td{padding:7px 10px;border-bottom:1px solid #8882;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.dt td:first-child{font:12.5px ui-monospace,Menlo,monospace;white-space:normal;word-break:break-all}.dt tr:hover td{background:#8881}.dt td[data-s]{cursor:pointer}.dt td[data-s]:hover{text-decoration:underline}.dt .z{opacity:.3}.pop.cm{width:auto;padding:5px;gap:0;border-radius:9px}.cm button{all:unset;padding:6px 12px;font-size:13px;border-radius:6px;cursor:pointer;white-space:nowrap}.cm button:hover{background:#3b82f6;color:#fff}.gh{padding:6px 12px;font-size:12px;color:GrayText;background:linear-gradient(#8882,#8882),Canvas;border-bottom:1px solid #8883;position:sticky;top:0;z-index:1}
+.pop{position:fixed;z-index:30;background:Canvas;border:1px solid #8886;border-radius:12px;padding:12px;box-shadow:0 14px 44px #000a;width:340px;display:flex;flex-direction:column;gap:10px}.pop label{font-size:13px}#sl{max-height:46vh;overflow:auto;display:flex;flex-direction:column}#sl label{display:flex;gap:8px;padding:6px 4px;font-size:13.5px;cursor:pointer;align-items:center;border-radius:6px}#sl label:hover{background:#8882}#sl input{width:auto;margin:0}.pr2{display:flex;gap:8px;align-items:center}#dash{flex:1;overflow:auto;padding:16px 18px;gap:14px}#dash h3{margin:0;font-size:14px}#dash h3 small{font-weight:400;opacity:.6;margin-left:8px}.dch{display:grid;grid-template-columns:132px 250px minmax(0,1fr);gap:18px;align-items:center}.dn{width:132px}.dn circle{cursor:pointer}.dn text{fill:currentColor;font-size:6.5px;font-weight:700}.dn text.s{font-size:3px;font-weight:400;opacity:.6}.dlg{display:flex;flex-direction:column;gap:2px}.dab{all:unset;display:grid;grid-template-columns:230px minmax(0,1fr) auto;gap:14px;align-items:center;box-sizing:border-box;width:100%;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;border:1px solid transparent}.dab:hover{background:#8882}.dab.on{border-color:#5b93ff;background:#5b93ff1f}.dab b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dab .br{display:flex;height:10px;border-radius:3px;overflow:hidden}.dab u{display:block}.ew{min-width:0;position:relative}.etip{display:none;position:absolute;left:0;top:100%;z-index:20;width:max-content;max-width:min(760px,70vw);grid-template-columns:auto minmax(0,1fr) auto auto;gap:6px 14px;align-items:baseline;padding:10px 14px;background:Canvas;border:1px solid #8886;border-radius:10px;box-shadow:0 10px 30px #0008;font-size:12.5px;cursor:default}.ew:hover .etip{display:grid}.etip i{font-style:normal;font-size:11px;opacity:.55;text-transform:uppercase;letter-spacing:.04em}.etip .ea{color:var(--bl);font-weight:600}.etip .ep{font-family:ui-monospace,Menlo,monospace;font-size:12px;word-break:break-all}.etip .en{font-weight:700;text-align:right;color:var(--am)}.etip .et{opacity:.75;white-space:nowrap;font-variant-numeric:tabular-nums}.etip em{grid-column:1/-1;font-style:normal;opacity:.6}.dab span:last-child{font-variant-numeric:tabular-nums}.dab small{opacity:.6;margin-left:6px}.dsb{all:unset;display:flex;gap:10px;align-items:center;box-sizing:border-box;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;border:1px solid transparent}.dsb:hover{background:#8882}.dsb.on{border-color:var(--c);background:color-mix(in srgb,var(--c) 12%,transparent)}.dsb b{color:var(--c);flex:1}.dsb b::before{content:"";display:inline-block;width:9px;height:9px;border-radius:3px;background:var(--c);margin-right:8px}.dsb span{font-variant-numeric:tabular-nums}.dsb span small{opacity:.6;margin-left:6px}.dtl{display:flex;flex-direction:column;gap:4px;min-width:0}.dtl div{display:flex;justify-content:space-between;font-size:11.5px;color:GrayText}.dtl svg{height:104px;width:100%;border-bottom:1px solid #8885}.dsl{float:right;font-size:12.5px;font-weight:400;color:GrayText}.dsl select{width:auto;font-size:12.5px;padding:2px 6px;margin-left:6px}.dsl input{width:84px;font-size:12.5px;padding:2px 6px;margin:0 4px 0 6px}.dt th i{font-style:normal;opacity:.45}.dt th sup{font-size:9px;margin-left:1px}.dsr{all:unset;float:right;cursor:pointer;color:var(--bl);font-size:12.5px;font-weight:400;margin:3px 16px 0 0}.dsr:hover{text-decoration:underline}.dt{width:100%;border-collapse:collapse;font-size:13px}.dt th{text-align:right;font-size:12px;font-weight:600;color:GrayText;padding:7px 10px;border-bottom:1px solid #8884;cursor:pointer;white-space:nowrap;position:sticky;top:-16px;background:light-dark(#fff,Canvas)}.dt th:first-child,.dt td:first-child{text-align:left}.dt th.on{color:var(--bl)}.dt th:first-child{width:100%}.dt td{padding:7px 10px;border-bottom:1px solid #8882;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.dt td:first-child{font:12.5px ui-monospace,Menlo,monospace;white-space:normal;word-break:break-all}.dt tr:hover td{background:#8881}.dt td[data-s]{cursor:pointer}.dt td[data-s]:hover{text-decoration:underline}.dt .z{opacity:.3}.pop.cm{width:auto;padding:5px;gap:0;border-radius:9px}.cm button{all:unset;padding:6px 12px;font-size:13px;border-radius:6px;cursor:pointer;white-space:nowrap}.cm button:hover{background:#3b82f6;color:#fff}.code .js,.code .jn{cursor:pointer}.code .js:hover,.code .jn:hover{text-decoration:underline}.gh{padding:6px 12px;font-size:12px;color:GrayText;background:linear-gradient(#8882,#8882),Canvas;border-bottom:1px solid #8883;position:sticky;top:0;z-index:1}
 .sq{flex:1;min-width:160px;position:relative;display:block}.sq .ic{position:absolute;left:12px;top:11px;opacity:.6}.sq input{padding-left:38px;padding-right:40px}.sq input:focus{border-color:#5b93ff;outline:0;box-shadow:0 0 0 2px #2f6fed40}.sq .sb{position:absolute;left:0;top:0;height:100%;width:38px;min-height:0;background:none;border:0;padding:0;margin:0;cursor:pointer;z-index:1}.sq .sb:hover .ic{opacity:1}
 .sq kbd{position:absolute;right:9px;top:50%;transform:translateY(-50%);font:12px ui-monospace,Menlo,monospace;border:1px solid #8886;border-radius:5px;padding:1px 6px;opacity:.6;pointer-events:none}
 .b,.hd button{display:inline-flex;gap:7px;align-items:center}.hr3{font-size:13.5px}#cnt{white-space:nowrap;opacity:.9}.up{display:inline-flex;gap:6px;align-items:center;opacity:.7;font-size:12.5px;white-space:nowrap}
@@ -457,7 +482,7 @@ const SL={SUCCESS:'Thành công',BUSINESS_ERROR:'Nghiệp vụ từ chối',ERRO
 // lý do hệ thống ghi: câu báo lỗi trong response (cùng field với "Lỗi là gì" của Dashboard), không có thì exception / dòng đầu
 // ponytail: chỉ đọc message ở tầng ngoài cùng của response; response lồng sâu hơn thì hiện nguyên JSON rút gọn
 const why=x=>{const A=x.api;let r=A?A.Response||'':x.m;if(A&&r)try{const j=JSON.parse(r),k=['message','toastMessage','errorReason'].find(k=>j&&j[k]);if(k)return String(j[k]);r=JSON.stringify(j)}catch(e){}return ((x.ex||'').split('\n').pop()||r.split('\n')[0]||'(log không ghi lý do)').slice(0,200)};
-// báo cáo dán vào ticket: các bước theo thời gian, bước dừng, lý do, link log
+// báo cáo dán vào ticket: các bước theo thời gian, lý do của lỗi đầu tiên, link log
 function rep(t){const f=t.fl,d=new Date(t.logs[0].k*1000),z=n=>('0'+n).slice(-2),o=-d.getTimezoneOffset()/60,S=t.logs.filter(x=>x.api||x.lv=='e'),lk=(f||t.logs[t.logs.length-1]).lk;
   return `[Graylog] ${t.name} — ${cls(t)}\nMôi trường: ${af.name.value} · ${z(d.getDate())}/${z(d.getMonth()+1)}/${d.getFullYear()} ${t.logs[0].t.slice(0,8)} (GMT${o<0?'':'+'}${o})\nTrace ID: ${t.id}\nCác bước đã ghi nhận:\n`+
     S.slice(0,30).map((x,i)=>{const u=x.api?x.api.URL.replace(/^(\S+ )\w+:\/\/[^\/]+/,'$1').split('?')[0]:'';return `  ${i+1}. ${x.ti} — ${x.lv=='e'?(x.api&&x.api.Status=='BUSINESS_ERROR'?'NGHIỆP VỤ TỪ CHỐI':'LỖI KỸ THUẬT'):'Thành công'}${x.lv=='e'?' ('+[x.sv,u!=x.ti&&u].filter(Boolean).join(', ')+')':''}`}).join('\n')+(S.length>30?`\n  … và ${S.length-30} bước khác`:'')+
@@ -486,8 +511,15 @@ let tpg=0;const TPS=20;
 // chuỗi JSON lồng trong JSON (vd "payload":"{\"clazz\":…}") -> bung ra cho dễ đọc
 const dec=v=>{if(typeof v=='string'&&/^\s*[{[]/.test(v)){try{return dec(JSON.parse(v))}catch(e){return v}}if(v&&typeof v=='object')for(const k in v)v[k]=dec(v[k]);return v};
 const dj=s=>{try{return JSON.stringify(dec(JSON.parse(s)),null,2)}catch(e){return s}};
+// JSON không parse được (log bị cắt giữa chừng, có ký tự xuống dòng trong chuỗi) vẫn xuống dòng, thụt lề theo ngoặc
+// ponytail: chỉ dàn lại ký tự, không giải mã JSON lồng trong chuỗi như dj
+function fj(s){let o='',d=0,q=0;const nl=()=>'\n'+'  '.repeat(d);for(let i=0;i<s.length;i++){const c=s[i];
+  if(q){o+=c;if(c=='\\')o+=s[++i]||'';else if(c=='"')q=0}else if(c=='"'){q=1;o+=c}else if(/\s/.test(c));
+  else if(c=='{'||c=='['){let j=i+1;while(/\s/.test(s[j]||''))j++;if(s[j]=='}'||s[j]==']'){o+=c+s[j];i=j}else{d++;o+=c+nl()}}
+  else if(c=='}'||c==']'){d=Math.max(0,d-1);o+=nl()+c}else if(c==',')o+=c+nl();else o+=c==':'?': ':c}return o}
+const djt=s=>{try{JSON.parse(s);return dj(s)}catch(e){return /^\s*[{[]/.test(s)?fj(s):s}};
 const svs=s=>s.replace(/^erp-|-service$/g,'');
-const bdg=t=>t.kind=='bad'?`<span class="bd ${t.st=='BUSINESS_ERROR'?'warn':'bad'}">${cls(t)}</span>`:t.nb?`<span class="bd bad">${t.nb} lỗi</span>`:t.nw?`<span class="bd warn">${t.nw} cảnh báo</span>`:`<span class="bd ${KD[t.kind][0]}">${KD[t.kind][1].slice(2)}</span>`;
+const bdg=t=>t.kind=='bad'?`<span class="bd ${t.st=='BUSINESS_ERROR'?'warn':'bad'}">${cls(t)}</span>`:t.nb?`<span class="bd bad">${t.nb} log lỗi</span>`:t.nw?`<span class="bd warn">${t.nw} log cảnh báo</span>`:`<span class="bd ${KD[t.kind][0]}">${KD[t.kind][1].slice(2)}</span>`;
 function code(s){if(!s)return '<div class=emp>(trống)</div>';let h='',p=0;
   if(/^\s*[{[]/.test(s)&&s.length<3e5)s.replace(/("(?:\\.|[^"\\])*")(\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g,(m,str,col,i)=>{h+=hl(s.slice(p,i))+'<span class='+(str?col?'jk':'js':/^[tfn]/.test(m)?'jb':'jn')+'>'+hl(str||m)+'</span>'+(col||'');p=i+m.length;return m});
   h+=hl(s.slice(p));const R=s.split('\n');return '<pre class=code>'+h.split('\n').map((l,i)=>{const r=R[i]||'';return '<div data-d='+r.search(/\S|$/)+'>'+(/[{[]\s*$/.test(r)&&R.length>1?'<u class=fo title="Đóng / mở"></u>':'')+l+'</div>'}).join('')+'</pre>'}
@@ -496,10 +528,11 @@ function refold(pre){let h=-1;for(const d of pre.children){const n=+d.dataset.d;
 document.addEventListener('click',e=>{const f=e.target.closest('.fo');if(!f)return;f.parentNode.classList.toggle('cl');refold(f.closest('pre'))});
 function rt(f){const w=$('tq').value.trim().toLowerCase();
   let a=D.T.map((t,i)=>[t,i]).filter(([t])=>(!ta||t.svs.includes(ta))&&(tf=='all'||(tf=='e'?t.nb||t.kind=='bad':t.nw))&&(t.id+' '+t.name+' '+t.path).toLowerCase().includes(w));if(!tdesc)a.reverse();
+  if(cur!=ALL&&cur!=LOOSE&&!a.some(p=>p[0]==cur)&&(cur||a.length))return pick(a[0]?a[0][0]:null,1);
   const np=Math.ceil(a.length/TPS)||1;if(f===0)tpg=0;if(f===1){const k=a.findIndex(p=>p[0]==cur);if(k>=0)tpg=Math.floor(k/TPS)}tpg=Math.min(tpg,np-1);const s=a.slice(tpg*TPS,tpg*TPS+TPS);
   $('tc').textContent=a.length;$('ts').innerHTML=(tdesc?'Mới nhất ↓':'Cũ nhất ↑');
   chips($('tfc'),[['all','Tất cả'],['e','Có lỗi'],['w','Cảnh báo']],tf,v=>{tf=v;rt(0)});
-  $('tl').innerHTML=s.map(([t,i])=>`<button type=button class="ti${cur==t?' on':''}" data-i=${i}><b title="${esc(t.name)}">${hl(t.name)}</b>${bdg(t)}${APPS.length>1&&t.svs.length?`<span class=aps title="${esc(t.svs.join('\n'))}"><span class=ap>${esc(t.svs[0])}</span>${t.svs.length>1?`<span class=ap>+${t.svs.length-1}</span>`:''}</span>`:''}<small class=tm>${MD?t.d+' ':''}${t.t} · ${t.logs.length} log${t.dur?' · '+esc(t.dur):''}</small>${t.id?`<small class=tid data-id="${esc(t.id)}" title="${esc(t.id)} — bấm để copy">${hl(t.id.slice(0,8))} ${IC('copy')}</small>`:''}${t.fl?`<small class="stp${t.st=='BUSINESS_ERROR'?' rj':''}">Dừng ở <b>${esc(t.fl.ti)}</b>: ${esc(why(t.fl))}</small>`:''}</button>`).join('')||'<div class=emp>Không có trace nào khớp.</div>';
+  $('tl').innerHTML=s.map(([t,i])=>`<button type=button class="ti${cur==t?' on':''}" data-i=${i}><b title="${esc(t.name)}">${hl(t.name)}</b>${bdg(t)}${APPS.length>1&&t.svs.length?`<span class=aps title="${esc(t.svs.join('\n'))}"><span class=ap>${esc(t.svs[0])}</span>${t.svs.length>1?`<span class=ap>+${t.svs.length-1}</span>`:''}</span>`:''}<small class=tm>${MD?t.d+' ':''}${t.t} · ${t.logs.length} log${t.dur?' · '+esc(t.dur):''}</small>${t.id?`<small class=tid data-id="${esc(t.id)}" title="${esc(t.id)} — bấm để copy">${hl(t.id.slice(0,8))} ${IC('copy')}</small>`:''}${t.fl?`<small class="stp${t.st=='BUSINESS_ERROR'?' rj':''}">Lỗi đầu tiên: <b>${esc(t.fl.ti)}</b> — ${esc(why(t.fl))}</small>`:''}</button>`).join('')||'<div class=emp>Không có trace nào khớp.</div>';
   $('tpf').hidden=np<2;$('tpn').textContent=(a.length?tpg*TPS+1+'–'+(tpg*TPS+s.length):0)+' / '+a.length+' trace';$('tpp').disabled=!tpg;$('tpx').disabled=tpg>=np-1;
   $('lose').hidden=!LOOSE.logs.length;$('lose').classList.toggle('on',cur==LOOSE);$('ln').textContent=LOOSE.logs.length;
   document.querySelectorAll('[data-md]').forEach(b=>b.classList.toggle('on',!DSH&&(b.dataset.md=='a')==(cur==ALL)))}
@@ -510,13 +543,13 @@ function pick(t,auto){cur=t;li=-1;lf='all';$('lq').value='';
   rt(1);rh();rl(1);rd()}
 function rh(){const t=cur;$('mh').hidden=!t;if(!t)return;const nb=t.logs.filter(x=>x.lv=='e').length,nw=t.logs.filter(x=>x.lv=='w').length,ns=new Set(t.logs.map(x=>x.sv).filter(Boolean)).size;
   $('mn').innerHTML=hl(t.name);$('mn').title=t.name;
-  $('mk').innerHTML=(t.kind?`<span class="bd ${t.st=='BUSINESS_ERROR'&&t.kind=='bad'?'warn':KD[t.kind][0]}">Kết quả cuối: ${cls(t)}</span>`:'')+(nb?`<span class="bd bad">${nb} lỗi</span>`:'')+(nw?`<span class="bd warn">${nw} cảnh báo</span>`:'');
+  $('mk').innerHTML=(t.kind?`<span class="bd ${t.st=='BUSINESS_ERROR'&&t.kind=='bad'?'warn':KD[t.kind][0]}">Kết quả cuối: ${cls(t)}</span>`:'')+(nb?`<span class="bd bad">${nb} log lỗi</span>`:'')+(nw?`<span class="bd warn">${nw} log cảnh báo</span>`:'');
   $('mp').innerHTML=`<span class=pth title="${esc(t.path)}">${hl(t.path)}</span>`+(t.id?`<span class=id id=cid title="Bấm để copy trace ID">Trace ID: ${hl(t.id)} ${IC('copy')}</span>`:'')+`<span>${t.logs.length} log · ${ns} dịch vụ${t.dur?' · '+esc(t.dur):''}</span>`;
-  if(t.id)$('cid').onclick=()=>cp(t.id,$('cid'));$('ma').hidden=$('mr').hidden=!t.id;$('mr').onclick=()=>cp(rep(t),$('mr'));
+  if(t.id)$('cid').onclick=()=>cp(t.id,$('cid'));$('ma').hidden=$('mr').hidden=!t.id;$('ma').lastChild.data=t.kind=='bad'?' Vì sao lỗi?':' Phân tích';$('mr').onclick=()=>cp(rep(t),$('mr'));
   const f=t.fl,rj=t.st=='BUSINESS_ERROR';$('msum').hidden=!f;if(f){$('msum').className='sum'+(rj?' rj':'');$('msum').onclick=()=>sel(t.logs.indexOf(f));
-    $('msum').innerHTML=`<b>${esc(t.name)} chưa thành công</b><span>Bước dừng</span><div>${f.api&&f.api.Step?'#'+esc(f.api.Step)+' ':''}${esc(f.ti)}${f.sv?' ('+esc(f.sv)+')':''}</div><span>Lý do hệ thống ghi</span><div>${esc(why(f))}</div><span>Phân loại</span><div>${rj?'Nghiệp vụ từ chối — hệ thống chạy đúng luồng và từ chối yêu cầu; có phải bug hay không cần đối chiếu yêu cầu nghiệp vụ':'Lỗi kỹ thuật — hệ thống gặp sự cố khi xử lý yêu cầu, không phải một từ chối theo luật nghiệp vụ; cần dev kiểm tra'}</div>`}}
+    $('msum').innerHTML=`<b>${esc(t.name)} chưa thành công</b><span>Lỗi đầu tiên</span><div>${f.api&&f.api.Step?'#'+esc(f.api.Step)+' ':''}${esc(f.ti)}${f.sv?' ('+esc(f.sv)+')':''} <small>· log lỗi sớm nhất, là điểm bắt đầu điều tra, chưa chắc là nguyên nhân gốc</small></div><span>Lý do hệ thống ghi</span><div>${esc(why(f))}</div><span>Phân loại</span><div>${rj?'Nghiệp vụ từ chối — hệ thống chạy đúng luồng và từ chối yêu cầu; có phải bug hay không cần đối chiếu yêu cầu nghiệp vụ':'Lỗi kỹ thuật — hệ thống gặp sự cố khi xử lý yêu cầu, không phải một từ chối theo luật nghiệp vụ; cần dev kiểm tra'}</div>`}}
 function rl(f){if(!cur){$('ll').innerHTML='<div class=emp>Không có log nào khớp. Thử nới khoảng thời gian hoặc đổi từ khoá.</div>';$('mf').hidden=true;return}
-  const A=vis(),n=c=>cur.logs.filter(x=>x.lv==c).length,np=Math.ceil(A.length/PS)||1;
+  const A=vis(),n=c=>cur.logs.filter(x=>x.lv==c).length,np=Math.ceil(A.length/PS)||1;if(li>=0&&!A.some(p=>p[1]==li)){li=-1;rd()}
   if(f===0)pg=0;if(f===1&&li>=0)pg=Math.max(0,Math.floor(A.findIndex(p=>p[1]==li)/PS));pg=Math.min(pg,np-1);const a=A.slice(pg*PS,pg*PS+PS);
   chips($('lfc'),[['all','Tất cả '+cur.logs.length],['e','Lỗi '+n('e')],['w','Cảnh báo '+n('w')]],lf,v=>{lf=v;rl(0)});$('ls').innerHTML=IC('sort')+(lasc?' Cũ → mới':' Mới → cũ');
   $('lq').placeholder='Tìm trong '+cur.logs.length+' log…';
@@ -527,7 +560,7 @@ function rl(f){if(!cur){$('ll').innerHTML='<div class=emp>Không có log nào kh
   $('mf').hidden=false;$('mfn').textContent='Hiển thị '+(A.length?pg*PS+1+'–'+(pg*PS+a.length):0)+' / '+A.length+' log'+(A.length<cur.logs.length?' (lọc từ '+cur.logs.length+')':'')+(cur.full?'':' — mới chỉ có các bước khớp từ khoá');$('more').hidden=!!cur.full}
 function rd(){const x=cur&&cur.logs[li];$('dp').hidden=$('spl').hidden=!x;if(!x)return;const a=vis(),p=a.findIndex(q=>q[1]==li),A=x.api;
   const raw=A?Object.entries(A).map(([k,v])=>k+': '+v).join('\n'):x.m,j=A?'':dj(x.m);
-  const tabs=[['Tổng quan',null]].concat(A?[['Request',dj(A['Request Body']||'')],['Response',dj(A.Response||'')],['Headers',A.Headers||'']]:[[j!=x.m?'JSON':'Nội dung',j]],A||j!=x.m?[['Raw',raw]]:[]);
+  const tabs=[['Tổng quan',null]].concat(A?[['Request',djt(A['Request Body']||'')],['Response',djt(A.Response||'')],['Headers',A.Headers||'']]:[[j!=x.m?'JSON':'Nội dung',j]],A||j!=x.m?[['Raw',raw]]:[]);
   const tn=(tabs.find(t=>t[0]==tab)||tabs[A?2:1])[0],tv=tabs.find(t=>t[0]==tn)[1],whole=tv==null||tn=='Raw';
   const kv=[['Service',x.sv],['Trace ID',x.tid],['Thời gian',x.d+' '+x.t]].concat(A?[['Step',A.Step],['URL',A.URL],['Status',A.Status],['Duration',A.Duration]]:[]).filter(r=>r[1]);
   const warn=x.lv!='i'?(A?'Status: '+(A.Status||'?')+(A.Response?'\n'+A.Response.split('\n').slice(0,6).join('\n').slice(0,300):''):(x.ex||x.m.split('\n')[0]).slice(0,300)):'';
@@ -558,7 +591,7 @@ if(+localStorage.glaw)$('g3').style.setProperty('--aw',localStorage.glaw+'px');
 $('rz').onpointerdown=e=>{e.preventDefault();const x0=e.clientX,w0=$('rz').parentNode.offsetWidth-10,mv=v=>{const w=Math.round(Math.max(60,Math.min(420,w0+x0-v.clientX)));$('g3').style.setProperty('--aw',w+'px');localStorage.glaw=w},up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up)};addEventListener('pointermove',mv);addEventListener('pointerup',up)};
 $('spl').onpointerdown=e=>{e.preventDefault();const mv=v=>{const r=$('rc').getBoundingClientRect(),h=Math.round(Math.max(110,Math.min(r.height-150,r.bottom-v.clientY)));$('dp').style.height=h+'px';localStorage.gldh=h},up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up)};addEventListener('pointermove',mv);addEventListener('pointerup',up)};
 document.querySelectorAll('[data-md]').forEach(b=>b.onclick=()=>pick(b.dataset.md=='a'?ALL:D.T[0]||(D.L.length?LOOSE:null),1));
-$('ma').onclick=()=>post('Tổng quan trace '+cur.id+': đi qua những bước nào, kết quả, có lỗi gì không?','ai');$('more').onclick=()=>post(cur.id,'search');
+$('ma').onclick=()=>post(cur.kind=='bad'?'Vì sao trace '+cur.id+' lần này lỗi? Trả lời theo 4 phần: 1) Điều đã quan sát được, 2) Nguyên nhân nghi ngờ, 3) Log làm bằng chứng (thời gian, service, trích dòng log), 4) Bước kiểm tra tiếp theo. Lỗi đầu tiên chỉ là điểm bắt đầu điều tra, chưa chắc là nguyên nhân gốc; điều gì chưa đủ bằng chứng thì nói rõ là chưa chắc.':'Tổng quan trace '+cur.id+': đi qua những bước nào, kết quả, có lỗi gì không?','ai');$('more').onclick=()=>post(cur.id,'search');
 addEventListener('keydown',e=>{if(/INPUT|TEXTAREA/.test(e.target.tagName)||!cur)return;const d={ArrowDown:1,ArrowUp:-1}[e.key];
   if(e.key=='Escape'&&li>=0)$('dx').onclick();else if(d){e.preventDefault();const a=vis(),p=a.findIndex(q=>q[1]==li),n=a[p<0?0:p+d];if(n)sel(n[1])}});
 pick(D.T[0]||(D.L.length?LOOSE:null),1);
@@ -596,7 +629,12 @@ document.querySelector('.mp').addEventListener('contextmenu',e=>{if(!cur||!e.tar
   const r=e.target.closest('#ll .lr'),x=r&&cur.logs[r.dataset.i];
   m.innerHTML=Object.keys(GK).map(k=>`<button type=button data-g=${k}>${grp==k?'✓ ':''}Nhóm theo ${GK[k]}</button>`).join('')+(grp?'<button type=button data-g="">Bỏ nhóm</button>':'')+(x&&x.sv?`<button type=button data-f="${esc(x.sv)}">Chỉ xem ${esc(x.sv)}</button>`:'')+($('lq').value?'<button type=button data-f="">Bỏ lọc</button>':'');
   m.hidden=false;m.style.left=Math.min(e.clientX,innerWidth-m.offsetWidth-8)+'px';m.style.top=Math.min(e.clientY,innerHeight-m.offsetHeight-8)+'px'});
-m.onclick=e=>{const b=e.target.closest('button');if(!b)return;if('g' in b.dataset)localStorage.glgrp=grp=b.dataset.g;else $('lq').value=b.dataset.f;m.hidden=true;rl(0)};
+// ponytail: tìm theo cụm từ nguyên văn (không theo field), giá trị dài hơn 200 ký tự thì bỏ qua
+document.addEventListener('click',e=>{const v=e.target.closest('.code .js,.code .jn');if(!v||String(getSelection()))return;let s=v.textContent;try{s=String(JSON.parse(s))}catch(x){}s=s.trim();if(!s||s.length>200)return;
+  const p='"'+s.replace(/(["\\])/g,'\\$1')+'"',b=(t,q)=>`<button type=button data-q="${esc(q)}">${t}</button>`;
+  m.innerHTML=b('Tìm theo giá trị này',p)+(D.q?b('Thêm vào bộ lọc','('+D.q+') AND '+p):'')+b('Loại trừ',(D.q?'('+D.q+') AND ':'')+'NOT '+p);
+  m.hidden=false;m.style.left=Math.min(e.clientX,innerWidth-m.offsetWidth-8)+'px';m.style.top=Math.min(e.clientY,innerHeight-m.offsetHeight-8)+'px'});
+m.onclick=e=>{const b=e.target.closest('button');if(!b)return;if('q' in b.dataset){m.hidden=true;return post(b.dataset.q,'search')}if('g' in b.dataset)localStorage.glgrp=grp=b.dataset.g;else $('lq').value=b.dataset.f;m.hidden=true;rl(0)};
 addEventListener('mousedown',e=>{if(!m.contains(e.target))m.hidden=true});}
 // Dashboard: số do Graylog đếm (không dính giới hạn 500 bản ghi); bấm status -> api có status đó; bấm số -> mở log tương ứng
 let DG=null,dst='',dso=[],dap='',DAP=[];const DF=()=>DG&&DG.f||{st:'api_status',api:'url_path',app:'application'},sq=s=>(DG.sq||{})[s]||DF().st+':'+s,dq=()=>[D.q&&'('+D.q+')',dap&&DF().app+':"'+dap.replace(/(["\\])/g,'\\$1')+'"'].filter(Boolean).join(' AND ');const SCOL={SUCCESS:'#2fb170',BUSINESS_ERROR:'#f0a020',ERROR:'#ef5350'},SLW=[200,500,1000,2000,3000,5000,10000],fms=v=>v%1000?v+' ms':v/1000+' giây';let dsl=+localStorage.glslow||1000,dsc=!SLW.includes(dsl);
@@ -627,7 +665,7 @@ function rdash(){if(dst&&!DG.st.some(x=>x[0]==dst))dst='';sessionStorage.gldst=J
   const cnt=k=>(DG.st.find(x=>x[0]==k)||[0,0])[1],kE=cnt('ERROR'),kB=cnt('BUSINESS_ERROR'),EA=DG.err||[],hm=t=>tf(t)+new Date(t).toTimeString().slice(5,8),lt=Math.max(0,...Object.values(last)),le=Math.max(0,...EA.flatMap(x=>x[4].map(p=>p[3]||0))),rg=esc($('tml').textContent+(dap?' · '+dap:'')),
     sumh=!tot||!DG.st.every(x=>SCOL[x[0]])?'':kE+kB?`<div class=dsum><b>Có ${kE} lượt gọi lỗi kỹ thuật, ${kB} lượt bị nghiệp vụ từ chối trong ${tot} lượt</b> · ${rg}${le?' · lỗi gần nhất lúc '+hm(le):''}${EA[0]?`<button type=button data-eq="${esc(sq(EA[0][0])+' AND '+EA[0][3])}">Nhiều nhất: “${esc(EA[0][1])}” ở ${esc(EA[0][4][0][1])} (${EA[0][2]} lần) — bấm để mở các log đó</button>`:''}</div>`
       :`<div class="dsum ok"><b>Chưa ghi nhận lỗi trong log đã nhận</b> · ${rg} · ${tot} lượt gọi${lt?' · log cuối lúc '+hm(lt):''}<small>Chỉ dựa trên log: service ngừng gửi log thì không hiện ở đây.</small></div>`;
-  $('dash').innerHTML=sumh+aph+`<h3>Status${dap?' · '+esc(dap):''}<small>${tot} log API${D.q?' khớp “'+esc(D.q)+'”':''} · bấm một status để xem các API có status đó</small></h3>`+(tot?`<div class=dch><svg class=dn viewBox="0 0 42 42">${donut}<text x=21 y=20.5 text-anchor=middle>${tot}</text><text x=21 y=25.5 text-anchor=middle class=s>log API</text></svg><div class=dlg>`+
+  $('dash').innerHTML=sumh+aph+`<h3>Status${dap?' · '+esc(dap):''}<small>${tot} log API (mỗi log là một lượt gọi)${D.q?' khớp “'+esc(D.q)+'”':''} · bấm một status để xem các API có status đó</small></h3>`+(tot?`<div class=dch><svg class=dn viewBox="0 0 42 42">${donut}<text x=21 y=20.5 text-anchor=middle>${tot}</text><text x=21 y=25.5 text-anchor=middle class=s>log API</text></svg><div class=dlg>`+
     DG.st.map(([s,n])=>`<button type=button class="dsb${dst==s?' on':''}" data-st="${esc(s)}" style="--c:${col(s)}" title="${esc(s)}"><b>${esc(SL[s]||s)}</b><span>${n}<small>${(n/tot*100).toFixed(1)}%</small></span></button>`).join('')+
     `</div><div class=dtl><div><span>${dst?esc(dst):'Số log API'} theo thời gian</span><span>cao nhất ${hmax} / cột</span></div><svg viewBox="0 0 ${nb} 100" preserveAspectRatio=none>${bars}</svg><div><span>${T.length?tf(t0):''}</span><span>${T.length?tf(t0+(nb-1)*step):''}</span></div></div></div>`:'<div class=emp>Không có log API nào trong phạm vi này.</div>')+
     (E.length?`<h3>Lỗi là gì<small>${et} lỗi · ${E.length} loại${E.length>10?', hiện 10 loại nhiều nhất':''} · bấm một dòng để mở các log đó</small></h3><div class=dch style="grid-template-columns:132px minmax(0,1fr);align-items:start"><svg class=dn viewBox="0 0 42 42">${edn}<text x=21 y=20.5 text-anchor=middle>${et}</text><text x=21 y=25.5 text-anchor=middle class=s>lỗi</text></svg><div class=dlg>`+
@@ -667,7 +705,10 @@ def pretty(v):
 def search_page(name, sid, title, app, tm, q):
     # trace id trần bị Graylog tách theo dấu '-' rồi OR từng mảnh -> khớp nhầm log khác; tự bọc ngoặc kép
     gq = re.sub(r'(?<![\w"-])(%s)(?![\w"-])' % UUID, r'"\1"', q)
-    code, out = gl('_search', name, sid, app, rng(tm), gq)
+    # truy vấn "chỉ log có trace" chạy sẵn song song với truy vấn chính (trước đây chạy nối tiếp, chậm thêm 1-2 giây); kết quả ít hơn 500 thì bỏ
+    with ThreadPoolExecutor(2) as ex:
+        more = ex.submit(gl, '_search', name, sid, app, rng(tm), '(%s) AND _exists_:trace_id' % (gq or '*'))
+        code, out = gl('_search', name, sid, app, rng(tm), gq)
     scope = (title or ('application ' + app if app else 'Tất cả stream')) + ' · ' + tml(tm)
     head = CSS + """<title>Graylog — %s</title><body class=wide><div class=nav><a class=btn href="%s/ask?name=%s" onclick="if(history.length>1){history.back();return false}">← Quay lại</a><a class=btn id=fw hidden href="javascript:history.forward()">Tới →</a><script>const S=sessionStorage,fn=()=>+S.fwd||0;addEventListener(`pageshow`,()=>{fw.hidden=!(fn()>0||(window.navigation&&navigation.canGoForward))});addEventListener(`click`,e=>{const a=e.target.closest(`a`);if(!a)return;S.fwd=a.id==`fw`?fn()-1:a.getAttribute(`onclick`)?fn()+1:0},true);addEventListener(`submit`,e=>{if(!e.defaultPrevented)S.fwd=0});</script><a class="btn r" href="%s">🏠 Đối tác</a></div>
 %s<h2 style="margin-top:10px">%s</h2>""" % (E(name), B, urllib.parse.quote(name), B, ctx(name, scope), E(q or 'Mọi log'))
@@ -685,14 +726,25 @@ def search_page(name, sid, title, app, tm, q):
     seen, groups = set(), {}   # gộp bản trùng (Graylog lưu mỗi log 2 lần), gom theo trace id; dict giữ thứ tự mới nhất trước
     msgs = list(data.get('messages', []))
     if data.get('total_results', 0) > len(msgs):   # bị cắt ở 500 bản ghi mới nhất: log lẻ của một service ồn đẩy hết trace của service khác ra ngoài -> lấy thêm 500 bản ghi có trace
-        c, o = gl('_search', name, sid, app, rng(tm), '(%s) AND _exists_:trace_id' % (gq or '*'))   # ponytail: vẫn chỉ 500 bản ghi có trace mới nhất; cần xa hơn thì thu hẹp thời gian hoặc thêm phân trang
+        c, o = more.result()   # ponytail: vẫn chỉ 500 bản ghi có trace mới nhất; cần xa hơn thì thu hẹp thời gian hoặc thêm phân trang
         try: msgs += json.loads(o).get('messages', []) if not c else []
         except ValueError: pass
-    ids = list(dict.fromkeys(a['Trace ID'] for a in (parse_api(str(m.get('message', {}).get('message', ''))) for m in msgs)
-                             if a and re.fullmatch(r'[\w-]+', a['Trace ID'])))
+    at = {}   # trace id -> thời điểm các log đã khớp; dict giữ thứ tự mới nhất trước
+    for m in msgs:
+        a = parse_api(str(m.get('message', {}).get('message', '')))
+        if a and re.fullmatch(r'[\w-]+', a['Trace ID']): at.setdefault(a['Trace ID'], []).append(str(m['message'].get('timestamp', '')))
+    ids = list(at)
+    def near(b):   # lấy đủ trace chỉ tìm trong ±30 phút quanh các log đã khớp của lô, không ra ngoài khoảng đang chọn (7 ngày: 6 giây -> 2 giây)
+        # ponytail: bước của trace cách mọi log đã khớp hơn 30 phút thì không được lấy thêm; cần thì nới số phút ở đây
+        try:
+            d = sorted(datetime.datetime.fromisoformat(x.replace('Z', '+00:00')) for t in b for x in at[t])
+            w, now, h = span(tm), datetime.datetime.now(datetime.timezone.utc), datetime.timedelta(minutes=30)
+            lo, hi = (x.astimezone(datetime.timezone.utc) for x in w) if w else (now - datetime.timedelta(seconds=SECS[tm]), now)
+            return '~'.join(x.strftime('%Y-%m-%dT%H:%M:%S.000Z') for x in (max(d[0] - h, lo), min(d[-1] + h, hi)))
+        except (ValueError, KeyError, IndexError, TypeError): return rng(tm)
     full = set(ids[:75]) if q and q not in ids else set()   # ponytail: 75 trace = 3 truy vấn; quá số đó thì trace chỉ hiện bước khớp
     # Graylog từ chối truy vấn quá ~16 trace id -> lô 12, chạy song song
-    for c, o in ThreadPoolExecutor(8).map(lambda i: gl('_search', name, sid, app, rng(tm), ' OR '.join('"%s"' % t for t in ids[i:i + 12])), range(0, len(full), 12)):
+    for c, o in ThreadPoolExecutor(8).map(lambda i: gl('_search', name, sid, app, near(ids[i:i + 12]), ' OR '.join('"%s"' % t for t in ids[i:i + 12])), range(0, len(full), 12)):
         try: msgs += json.loads(o).get('messages', []) if not c else []
         except ValueError: pass
     idset = set(ids)
@@ -746,7 +798,7 @@ def search_page(name, sid, title, app, tm, q):
 <span class=ttl>Log Explorer</span><i class=vr></i>
 <label class="sx c0" title="Đổi đối tác (tìm trên tất cả stream của đối tác đó)">%(iu)s<select id=sp>%(po)s</select></label>
 <button type=button class="sx c1" title="%(stt)s — bấm để đổi stream">%(ily)s<span class=two><small>%(stn)s</small><b>%(stl)s</b></span></button>
-<label class="sx c2" title="Đổi khoảng thời gian">%(ical)s<span class=two><b id=tml></b><small id=tmr></small></span><select id=stm>%(to)s</select></label></div>
+<label class="sx c2" title="Đổi khoảng thời gian">%(ical)s<span class=two><b id=tml></b><small id=tmr></small></span><select id=stm>%(to)s</select></label><span id=fv></span><script>/* ngôi sao: lưu / gỡ phạm vi (stream, app, thời gian) + câu tìm đang xem vào Ưa thích; nút bên cạnh mở danh sách để vào nhanh */{const fq=o=>fetch(`%(b)s/fav`,{method:`POST`,body:new URLSearchParams([...new FormData(sqf).entries()].filter(e=>e[0]!=`q`&&e[0]!=`act`).concat([[`q`,sqf.q.defaultValue],[`op`,o]]))}).then(r=>r.text()).then(h=>{fv.innerHTML=fv.querySelector(`details[open]`)?h.replace(`<details`,`<details open`):h}).catch(()=>{});addEventListener(`pageshow`,()=>fq(``));fv.onclick=e=>{if(e.target.closest(`#fvb`))fq(`t`)};addEventListener(`click`,e=>{const d=fv.querySelector(`details[open]`);if(d&&!d.contains(e.target))d.open=false})}</script><span id=lc></span><script>/* nút mở lại hội thoại AI gần nhất của đối tác; hỏi lại mỗi lần trang hiện ra vì bấm Quay lại từ trang chat là trang cũ lấy từ bộ nhớ đệm */addEventListener(`pageshow`,async()=>{try{lc.innerHTML=await(await fetch(`%(b)s/lastchat`,{method:`POST`,body:new URLSearchParams({name:document.querySelector(`#sqf [name=name]`).value})})).text()}catch(_){}})</script></div>
 <div class=pop id=spop hidden><input id=sf placeholder="Lọc stream…" autocomplete=off><div id=sl></div><div class=pr2><button type=button class=sm id=sno>Bỏ chọn hết</button><span style="flex:1"></span><button type=button class="p sm" id=sok>Áp dụng</button></div><small style="opacity:.6">Không chọn stream nào = tìm trên tất cả stream.</small></div>
 <div class=pop id=tpop hidden><label>Từ<input type=datetime-local id=tf></label><label>Đến<input type=datetime-local id=tt></label><div class=pr2><button type=button class="p sm" id=tok>Áp dụng</button></div></div>
 <div class=hr2><form method=post action="%(b)s/ask" class=sq id=sqf>%(scope)s<input type=hidden name=act value=search><button class=sb title="Tìm">%(is)s</button><input name=q value="%(q)s" placeholder="Mã đơn, mã giao dịch, mã sản phẩm, nội dung hoặc trace ID… (để trống = mọi log)" autocomplete=off><kbd>↵</kbd></form>
@@ -762,7 +814,7 @@ def search_page(name, sid, title, app, tm, q):
 <button type=button class=lose id=lose>%(il)s<span>Log không có trace ID</span><b class=pill id=ln></b>›</button>
 <div class=pf id=tpf><button type=button class=sm id=tpp>‹</button><span id=tpn></span><button type=button class=sm id=tpx>›</button></div></section>
 <div class=vsp id=vsp title="Kéo để đổi độ rộng"><button type=button id=vtg></button></div><div class=rc id=rc>
-<section class="pane mp"><div class=ph id=mh><div class=pr><h2 id=mn></h2><span class=pr id=mk></span><span style="flex:1"></span><button type=button class="p b sm" id=ma title="Nhờ AI phân tích trace này">%(ia)s Phân tích</button><button type=button class="sm b" id=mr title="Copy bản tóm tắt trace này để dán vào ticket / chat">%(ic)s Copy báo cáo</button><button type=button class="sm b" id=fs title="Phóng to / thu nhỏ vùng log">%(ifs)s</button></div><div class="sub pr" id=mp></div><div id=msum hidden title="Bấm để mở log của bước dừng"></div></div>
+<section class="pane mp"><div class=ph id=mh><div class=pr><h2 id=mn></h2><span class=pr id=mk></span><span style="flex:1"></span><button type=button class="p b sm" id=ma title="Nhờ AI phân tích trace này">%(ia)s Phân tích</button><button type=button class="sm b" id=mr title="Copy bản tóm tắt trace này để dán vào ticket / chat">%(ic)s Copy báo cáo</button><button type=button class="sm b" id=fs title="Phóng to / thu nhỏ vùng log">%(ifs)s</button></div><div class="sub pr" id=mp></div><div id=msum hidden title="Bấm để mở log lỗi đầu tiên"></div></div>
 <div class="pr tb"><b>Log trong trace</b><div class=fi>%(is)s<input id=lq placeholder="Tìm trong trace này…" autocomplete=off></div><div class=fc id=lfc></div><button type=button class="sm b" id=ls></button></div>
 <div class="lr lh"><span>Thời gian</span><span>Mức log</span><span>Nội dung</span><span class=ap><u class=rz id=rz title="Kéo để đổi độ rộng cột"></u>Application</span><span class=du>Thời lượng</span></div>
 <div class=sc id=ll></div><div class=pf id=mf><span id=mfn></span><button type=button class="sm b" id=more>Tải cả trace</button><div id=pgr></div></div></section>
@@ -794,7 +846,7 @@ body{max-width:900px}
 .wait{padding:14px 18px}.wait>span{animation:pulse 1.4s infinite}@keyframes pulse{50%{opacity:.45}}.wait small{opacity:.6;margin:0 12px}.stop,.retry{padding:3px 12px;font-size:13px}.ans code.tr{cursor:pointer;text-decoration:underline dotted}
 #f{position:sticky;bottom:0;display:flex;gap:8px;align-items:flex-end;background:var(--bg);padding:12px 0 16px;margin-top:24px;border-top:1px solid #8885}
 #f{flex-wrap:wrap}#al{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px}#al:empty{display:none}#al span{border:1px solid #8886;border-radius:14px;padding:3px 6px 3px 12px;font-size:13px}#al b{cursor:pointer;padding:0 6px;opacity:.6}#f.dr textarea{outline:2px dashed #2f6fed}
-#f textarea{flex:1;resize:none;max-height:40vh;font-size:16px;line-height:1.5}#f button:disabled{opacity:.45;cursor:default}
+#f textarea{flex:1;resize:none;max-height:40vh;font-size:16px;line-height:1.5}#mm{position:absolute;bottom:100%;left:0;background:Canvas;border:1px solid #8886;border-radius:10px;padding:6px;box-shadow:0 4px 16px #0005;font-size:14px}#mm[hidden]{display:none}#mm button{display:block;width:100%;text-align:left;border:0;background:none;color:inherit;font:inherit;padding:6px 12px;border-radius:6px;cursor:pointer;white-space:pre}#mm button:hover,#mm button:focus{background:#3b82f6;color:#fff;outline:0}#mm small{display:block;padding:4px 10px;opacity:.7}#f button:disabled{opacity:.45;cursor:default}
 </style><title>Graylog AI — @N@</title>
 <div class=nav><a class=btn href="@FORM@" onclick="if(history.length>1){history.back();return false}">← Quay lại</a><a class=btn id=fw hidden href="javascript:history.forward()">Tới →</a>
 <a class="btn p" href="@FORM@">🔍 Tìm / hỏi câu khác</a><a class="btn r" href="@B@">🏠 Đối tác</a></div>
@@ -815,7 +867,7 @@ document.getElementById('ab').onclick=()=>fi.click();fi.onchange=()=>{add(fi.fil
 t.addEventListener('paste',e=>{const fs=[...e.clipboardData.files];if(fs.length){e.preventDefault();add(fs)}});
 f.ondragover=e=>{e.preventDefault();f.classList.add('dr')};f.ondragleave=()=>f.classList.remove('dr');f.ondrop=e=>{e.preventDefault();f.classList.remove('dr');add(e.dataTransfer.files)};
 function mark(){if(document.getElementById('sf'))chat.querySelectorAll('.ans code').forEach(c=>{if(/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(c.textContent.trim())){c.className='tr';c.title='Mở log của trace này'}})}
-function busy(){mark();const w=!!chat.querySelector('.wait');btn.disabled=w;t.placeholder=w?'AI đang trả lời…':'Hỏi tiếp về kết quả này… (Enter để gửi, Shift+Enter xuống dòng)'}
+function busy(){mark();const w=!!chat.querySelector('.wait');btn.disabled=w;t.placeholder=w?'AI đang trả lời…':'Hỏi tiếp về kết quả này… (Enter để gửi, Shift+Enter xuống dòng, gõ /model để đổi model AI)'}
 function last(){const q=chat.querySelectorAll('.q');q.length&&q[q.length-1].scrollIntoView({block:'start'})}
 async function poll(){
   try{const d=new DOMParser().parseFromString(await(await fetch(location.href)).text(),'text/html').getElementById('chat');
@@ -835,7 +887,17 @@ chat.onclick=e=>{const li=e.target.closest('h4+ul li'),c=e.target.closest('code.
   if(e.target.closest('.retry')){const qs=chat.querySelectorAll('.q');t.value=qs[qs.length-1].textContent;f.requestSubmit();return}
   if(c){const sf=document.getElementById('sf');sf.elements.q.value=c.textContent.trim();sf.requestSubmit(sf.querySelector('button'));return}
   if(li){t.value=li.textContent.trim();t.oninput();t.focus()}};
-t.onkeydown=e=>{if(e.key=='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();f.requestSubmit()}};
+// gõ /model (hoặc chỉ /) trong ô chat -> danh sách model, lấy từ ô Model của Cài đặt AI; chọn là lưu, áp dụng từ câu kế tiếp
+// ponytail: chỉ có lệnh /model; chọn bằng chuột, hoặc Enter rồi Tab + Enter
+const mm=document.createElement('div');mm.id='mm';mm.hidden=true;f.append(mm);
+function mdl(){const c=document.getElementById('cff'),v=t.value.trim().toLowerCase(),on=v[0]=='/'&&'/model'.startsWith(v);mm.hidden=!on;if(!on)return;
+  mm.innerHTML=document.querySelector('input[name=cfp]:checked').value!='claude'?'<small>Chỉ đổi được model khi nhà cung cấp AI là Claude (nút ⚙ góc trên phải).</small>'
+    :'<small>Model AI, áp dụng từ câu kế tiếp</small>'+[...c.options].map(o=>`<button type=button data-m="${o.value}">${o.value==c.value?'✓ ':'   '}${o.text}</button>`).join('')}
+t.addEventListener('input',mdl);
+mm.onclick=async e=>{const b=e.target.closest('button');if(!b)return;const c=document.getElementById('cff');
+  const r=await fetch('@B@/model',{method:'POST',body:new URLSearchParams({m:b.dataset.m})}).catch(()=>0);if(!r||!r.ok){mm.innerHTML='<small>Không lưu được.</small>';return}
+  c.value=c.dataset.v=b.dataset.m;t.value='';t.focus();mm.innerHTML='<small>Đã đổi sang '+c.selectedOptions[0].text.split(' — ')[0]+'.</small>';setTimeout(()=>{if(!t.value)mm.hidden=true},1500)};
+t.onkeydown=e=>{if(e.key=='Escape')mm.hidden=true;if(e.key=='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();if(!mm.hidden){const b=mm.querySelector('button');if(b)b.focus();return}f.requestSubmit()}};
 t.oninput=()=>{t.style.height='auto';t.style.height=t.scrollHeight+2+'px'};
 last();busy();if(chat.querySelector('.wait'))setTimeout(poll,3000);
 </script>"""
@@ -932,21 +994,23 @@ def gear():   # nút bánh răng góc trên phải ở mọi màn hình: chọn 
     if th not in ('light', 'dark'): th = ''
     return """<style>#cfg{position:fixed;top:10px;right:14px;z-index:30;width:36px;height:36px;padding:0;border:1px solid #8886;border-radius:50%%;background:Canvas;color:CanvasText;font-size:18px;line-height:1;cursor:pointer;opacity:.75}#cfg:hover{opacity:1}
 #cfd{border:1px solid #8886;border-radius:12px;padding:20px 22px;width:min(480px,90vw);box-sizing:border-box;font:15px/1.5 -apple-system,sans-serif;color:CanvasText;background:Canvas}#cfd::backdrop{background:#0008}
-#cfd h3{margin:0 0 2px;font-size:18px}#cfd small{opacity:.65}#cfd label{display:flex;gap:10px;align-items:baseline;font-weight:400;margin:10px 0;cursor:pointer}#cfd label input{width:auto;margin:0}#cfd label b{min-width:76px}
+#cfd h3{margin:0 0 2px;font-size:18px}#cfd small{opacity:.65}#cfd label{display:flex;gap:10px;align-items:baseline;font-weight:400;margin:10px 0;cursor:pointer}#cfd label input{width:auto;margin:0}#cfd label[hidden]{display:none}#cfd label b{min-width:76px}
 #cfc{width:100%%;box-sizing:border-box;font:13px ui-monospace,monospace;padding:8px 10px;border:1px solid #8888;border-radius:8px;background:none;color:inherit}
 #cfh{white-space:pre-wrap;font:12px/1.6 ui-monospace,monospace;border:1px solid #8885;border-radius:8px;padding:10px 12px;margin:12px 0 0;overflow:auto;user-select:text;-webkit-user-select:text}#cfh:empty{display:none}#cfd i{font-style:normal;font-size:12px;margin-left:auto}#cfd i.y{color:#2a9d5c}#cfd i.n{color:#d98a1c}
 #cfo{white-space:pre-wrap;font-size:13px;max-height:9em;overflow:auto;margin:12px 0 0}#cfo:empty{display:none}#cfd .cfb{display:flex;gap:10px;margin-top:16px}#cfd .cfb button{font:inherit;padding:7px 14px;border-radius:8px;cursor:pointer}#cft{display:flex;gap:14px;align-items:baseline;margin-top:14px;padding-top:12px;border-top:1px solid #8884}#cfd #cft label{margin:0;gap:6px}</style>
 <button id=cfg type=button title="Cài đặt AI: chọn nhà cung cấp" aria-label="Cài đặt AI">⚙</button>
 <dialog id=cfd><h3>Cài đặt AI</h3><small>Phần "Phân tích với AI" sẽ hỏi nhà cung cấp chọn ở đây, qua công cụ dòng lệnh của họ trên máy này. App không giữ API key nào.</small>
 %s<input id=cfc value="%s" placeholder="vd: ollama run llama3" spellcheck=false hidden>
+<label id=cffl><b>Model</b><select id=cff style="font:inherit">%s</select></label>
 <div id=cfh></div><p id=cfo></p><div id=cft><b>Giao diện</b>%s</div><div class=cfb><button class=p id=cfs type=button>Lưu và kiểm tra</button><button id=cfx type=button>Đóng</button><small style="margin:auto 0 auto auto">Graylog %s</small></div></dialog>
-<script>(()=>{const $=i=>document.getElementById(i),d=$('cfd'),TH=v=>document.documentElement.style.colorScheme=v||'light dark',o=$('cfo'),c=$('cfc'),v=()=>d.querySelector('input[name=cfp]:checked').value,s=()=>{c.hidden=v()!='custom';$('cfh').textContent=(S[v()]||[])[0]?'':(S[v()]||[])[1]||''};let S={};
+<script>(()=>{const $=i=>document.getElementById(i),d=$('cfd'),TH=v=>document.documentElement.style.colorScheme=v||'light dark',o=$('cfo'),c=$('cfc'),v=()=>d.querySelector('input[name=cfp]:checked').value,s=()=>{c.hidden=v()!='custom';$('cffl').hidden=v()!='claude';$('cfh').textContent=(S[v()]||[])[0]?'':(S[v()]||[])[1]||''};let S={};
 const st=async()=>{try{S=await(await fetch('%s/aistat',{method:'POST'})).json()}catch(_){}for(const k in S){const i=$('cfi-'+k);if(S[k][0]!=null){i.textContent=S[k][0]?'đã cài':'chưa cài';i.className=S[k][0]?'y':'n'}}s()};
-const R=()=>[...d.querySelectorAll('input[name=cfp]')];$('cfg').onclick=()=>{R().forEach(r=>r.checked=r.defaultChecked);c.value=c.defaultValue;o.textContent='';s();d.showModal();st()};$('cfx').onclick=()=>d.close();d.onchange=s;s();TH('%s');d.querySelectorAll('input[name=cfth]').forEach(r=>r.onchange=()=>{TH(r.value);fetch('%s/theme',{method:'POST',body:new URLSearchParams({t:r.value})})});
+const R=()=>[...d.querySelectorAll('input[name=cfp]')];$('cfg').onclick=()=>{R().forEach(r=>r.checked=r.defaultChecked);c.value=c.defaultValue;$('cff').value=$('cff').dataset.v||$('cff').querySelector('[selected]').value;o.textContent='';s();d.showModal();st()};$('cfx').onclick=()=>d.close();d.onchange=s;s();TH('%s');d.querySelectorAll('input[name=cfth]').forEach(r=>r.onchange=()=>{TH(r.value);fetch('%s/theme',{method:'POST',body:new URLSearchParams({t:r.value})})});
 $('cfs').onclick=async()=>{$('cfs').disabled=true;o.textContent='Đang lưu và hỏi thử một câu, chờ chút…';
-try{o.textContent=await(await fetch('%s/ai',{method:'POST',body:new URLSearchParams({p:v(),cmd:c.value})})).text();R().forEach(r=>r.defaultChecked=r.checked);c.defaultValue=c.value}catch(_){o.textContent='Không lưu được.'}$('cfs').disabled=false;st()}})()</script>""" % (
+try{o.textContent=await(await fetch('%s/ai',{method:'POST',body:new URLSearchParams({p:v(),cmd:c.value,model:$('cff').value})})).text();R().forEach(r=>r.defaultChecked=r.checked);$('cff').dataset.v=$('cff').value;c.defaultValue=c.value}catch(_){o.textContent='Không lưu được.'}$('cfs').disabled=false;st()}})()</script>""" % (
         ''.join('<label><input type=radio name=cfp value=%s%s><b>%s</b><small>%s</small><i id=cfi-%s></i></label>' % (k, ' checked' if k == cur else '', n, h, k) for k, n, h in AIS),
-        E(str(d.get('cmd', ''))), ''.join('<label><input type=radio name=cfth value="%s"%s>%s</label>' % (k, ' checked' if k == th else '', n) for k, n in (('', 'Theo hệ thống'), ('light', 'Sáng'), ('dark', 'Tối'))),
+        E(str(d.get('cmd', ''))), ''.join('<option value=%s%s>%s</option>' % (k, ' selected' if k == (d.get('model') if d.get('model') in ('haiku', 'opus', 'fable', 'default') else 'sonnet') else '', n) for k, n in (
+            ('sonnet', 'Sonnet — nhanh, tốn ít token'), ('haiku', 'Haiku — tốn ít token nhất, phân tích nông hơn'), ('opus', 'Opus — kỹ hơn, chậm và tốn hơn Sonnet'), ('fable', 'Fable — mạnh nhất, chậm và tốn nhất'), ('default', 'Mặc định của Claude Code — theo cài đặt Claude Code trên máy'))), ''.join('<label><input type=radio name=cfth value="%s"%s>%s</label>' % (k, ' checked' if k == th else '', n) for k, n in (('', 'Theo hệ thống'), ('light', 'Sáng'), ('dark', 'Tối'))),
         'v' + VERSION, B, th, B, B)
 
 
@@ -1028,8 +1092,27 @@ class H(http.server.BaseHTTPRequestHandler):
         if u.path == B + '/theme':
             with open(os.path.join(CONF, 'theme'), 'w') as fh: fh.write(g('t') if g('t') in ('light', 'dark') else '')
             return self.page('')
+        if u.path == B + '/fav':   # op=t: bật / tắt sao cho đúng phạm vi + câu tìm đang xem; luôn trả về nút sao và danh sách ưa thích
+            ids = dict((i, t) for t, i in get_streams(g('name'), live=False) or [])
+            sid, tm = g('sid'), g('tm'); sids = sid.split(',') if sid else []
+            it = [sid, ', '.join(ids.get(i, '') for i in sids), g('app') if not sid else '', tm, g('q')]
+            old = any([x[0]] + x[2:5] == [it[0]] + it[2:] for x in favs(g('name')))   # mục đã lưu thì luôn gỡ được, kể cả khi stream của nó đã bị xoá
+            if g('name') not in names or not old and (len(sids) > 20 or any(i not in ids for i in sids) or not (tm in SECS or span(tm))): return self.page('')
+            l = favs(g('name'), it if g('op') == 't' else None); on = any([x[0]] + x[2:5] == [it[0]] + it[2:] for x in l)
+            return self.page(FAVCSS + '<button type=button id=fvb title="%s">%s</button>' % ('Gỡ khỏi Ưa thích' if on else 'Lưu phạm vi và câu tìm đang xem vào Ưa thích', '★' if on else '☆')
+                             + (l and '<details><summary>Ưa thích (%d)</summary><div>%s</div></details>' % (len(l), rerun(g('name'), [x + [''] for x in l], FAVX)) or ''))
+        if u.path == B + '/lastchat':
+            m = re.search(r'href="([^"]+)"><b>(.*?)</b>', (history(g('name')) or [''])[0])
+            return self.page('<a class=btn href="%s" title="Mở lại hội thoại AI gần nhất: %s">💬 Chat gần nhất</a>' % m.groups() if m else '')
+        if u.path == B + '/model':   # /model trong ô chat: chỉ đổi model, giữ nguyên nhà cung cấp và lệnh riêng
+            try: d = json.load(open(os.path.join(CONF, 'ai.json'), encoding='utf-8'))
+            except (OSError, ValueError): d = {}
+            d['model'] = g('m') if g('m') in ('haiku', 'opus', 'fable', 'default') else 'sonnet'
+            os.makedirs(CONF, exist_ok=True)
+            with open(os.path.join(CONF, 'ai.json'), 'w', encoding='utf-8') as fh: json.dump(d, fh)
+            return self.page('')
         if u.path == B + '/ai':
-            out = gl('_ai', g('p'), 'check', stdin=g('cmd'))[1]
+            out = gl('_ai', g('p'), 'check', g('model') if g('model') in ('haiku', 'opus', 'fable', 'default') else 'sonnet', stdin=g('cmd'))[1]
             if sys.argv[2:] == ['app']:   # Graylog.app đọc file .note rồi xoá, hiện thông báo (gl-app.swift)
                 os.makedirs(os.path.join(CONF, 'ask'), exist_ok=True)
                 with open(os.path.join(CONF, 'ask', '%d.note' % os.getpid()), 'w', encoding='utf-8') as f: f.write(out)

@@ -31,12 +31,15 @@ Kết quả có ba tab.
 
 Mỗi dòng bên trái là một lượt gọi (một trace id) kèm kết quả cuối, số log và thời lượng. Chọn một trace để xem từng bước bên phải; bấm một bước để xem URL, header, request body và response. Lọc được theo "Có lỗi" / "Cảnh báo".
 
-Trace không thành công được ghi là "Nghiệp vụ từ chối" (status `BUSINESS_ERROR`: hệ thống chạy đúng luồng và từ chối yêu cầu) hoặc "Lỗi kỹ thuật" (status `ERROR`), kèm dòng "Dừng ở (bước): (lý do)". Mở trace ra có khung tóm tắt bước dừng, lý do hệ thống ghi và phân loại; bấm khung để tới log của bước đó. Bước dừng là log lỗi sớm nhất của trace; lý do lấy từ `message`, `toastMessage` hoặc `errorReason` trong response, không có thì lấy exception.
+Trace không thành công được ghi là "Nghiệp vụ từ chối" (status `BUSINESS_ERROR`: hệ thống chạy đúng luồng và từ chối yêu cầu) hoặc "Lỗi kỹ thuật" (status `ERROR`), kèm dòng "Lỗi đầu tiên: (bước) — (lý do)". Mở trace ra có khung tóm tắt lỗi đầu tiên, lý do hệ thống ghi và phân loại; bấm khung để tới log đó. Lỗi đầu tiên là log lỗi sớm nhất của trace: điểm bắt đầu điều tra, chưa chắc là nguyên nhân gốc; lý do lấy từ `message`, `toastMessage` hoặc `errorReason` trong response, không có thì lấy exception.
 
+- **Bấm một giá trị trong JSON** (chuỗi hoặc số ở tab Request, Response, JSON): chọn "Tìm theo giá trị này", "Thêm vào bộ lọc" (từ khoá đang tìm AND giá trị) hoặc "Loại trừ" (AND NOT giá trị). Tool tìm lại trên Graylog trong cùng phạm vi và thời gian.
+- **Vì sao lỗi?**: với trace không thành công, nút "Phân tích" đổi thành "Vì sao lỗi?" và AI trả lời theo 4 phần: điều đã quan sát được, nguyên nhân nghi ngờ, log làm bằng chứng, bước kiểm tra tiếp theo.
+- Request và Response dạng JSON luôn được xuống dòng, thụt lề, kể cả khi log bị cắt giữa chừng nên không còn là JSON hợp lệ; bản gốc nằm ở tab Raw.
 - **Copy báo cáo**: copy bản tóm tắt trace (môi trường, thời gian, trace ID, các bước, kết quả thực tế, link log Graylog) để dán vào ticket.
 - **Copy cURL** (trong chi tiết một log API): copy request thành lệnh `curl`, dán vào Postman bằng Import. Header trong log được ghi nguyên, kể cả `authorization`; chỉ bỏ các header do proxy sinh ra (`content-length`, `host`, `accept-encoding`, `forwarded`, `x-forwarded-*`, `x-real-ip`). Khi kết quả có từ hai application trở lên, mỗi trace ghi tên application của nó, và ô "Mọi application" cạnh số đếm cho xem riêng một application trong số log đã tải.
 
-Mỗi lần tìm tải 500 bản ghi mới nhất; nếu còn nhiều hơn, tool tải thêm 500 bản ghi có trace ID mới nhất để log lẻ của một service không che hết trace của service khác, và ghi chú cuối trang cho biết đang xem một phần.
+Mỗi lần tìm tải 500 bản ghi mới nhất; nếu còn nhiều hơn, tool tải thêm 500 bản ghi có trace ID mới nhất để log lẻ của một service không che hết trace của service khác, và ghi chú cuối trang cho biết đang xem một phần. Các log còn thiếu của những trace đang hiện được tìm thêm trong khoảng 30 phút trước và sau khoảng thời gian đã chọn.
 
 Tool nhận log API theo khuôn sau (các service ghi log khác khuôn vẫn hiện ở tab "Tất cả log"):
 
@@ -96,7 +99,13 @@ Mặc định dùng Claude: cần cài [`claude`](https://claude.com/claude-code
 
 Hộp cài đặt (trên macOS mở được bằng menu Graylog → Settings…, ⌘,) còn có lựa chọn giao diện Sáng / Tối / Theo hệ thống. Hộp cài đặt cho biết lệnh của từng nhà đã cài chưa và hiện sẵn lệnh cài, lệnh đăng nhập. "Lưu và kiểm tra" lưu lựa chọn rồi hỏi thử một câu thật. App không giữ API key nào. Chỉ Claude nối được phiên cũ khi hỏi tiếp; các lựa chọn khác nhận lại phần cuối hội thoại trong mỗi câu hỏi. Lệnh tuỳ chỉnh không tự truy vấn Graylog, chỉ đọc log app gửi kèm. OpenAI và Gemini chưa được thử trên máy thật.
 
-Bấm "Phân tích với AI" hoặc nút "Phân tích" trên một trace rồi đặt câu hỏi. Bản macOS hiện thông báo khi AI trả lời xong (cần cho phép thông báo của Graylog trong System Settings); bản chạy trong trình duyệt báo bằng thông báo của trình duyệt nếu được cho phép. Nội dung log được gửi lên nhà cung cấp AI đang chọn; số điện thoại, CCCD và các dữ liệu tương tự được che trước khi gửi.
+Với Claude, hộp cài đặt có ô chọn "Model": Sonnet (mặc định, nhanh và tốn ít token), Haiku (tốn ít token nhất, phân tích nông hơn), Opus (kỹ hơn, chậm và tốn hơn Sonnet), Fable (mạnh nhất, chậm và tốn nhất) hoặc model mặc định của Claude Code (theo cài đặt Claude Code trên máy). Chọn xong bấm "Lưu và kiểm tra". Đổi nhanh ngay trong hội thoại: gõ `/model` vào ô chat rồi chọn trong danh sách; model mới áp dụng từ câu kế tiếp.
+
+Ở màn hình Log Explorer, nút ngôi sao ☆ trên thanh trên cùng lưu phạm vi đang xem (các stream hoặc app, khoảng thời gian) cùng câu tìm vào Ưa thích; bấm lần nữa (★) để gỡ. Nút "Ưa thích (n)" bên cạnh mở danh sách đã lưu, bấm một mục là tìm lại ngay. Nút ✕ cạnh mỗi mục gỡ mục đó khỏi Ưa thích. Danh sách này cũng hiện ở cột phải của trang chọn phạm vi và không tự xoá sau 30 ngày.
+
+Ở màn hình Log Explorer, khi đối tác đang xem đã có hội thoại AI, thanh trên cùng hiện nút "💬 Chat gần nhất" để mở lại hội thoại mới nhất.
+
+Bấm "Phân tích với AI" hoặc nút "Phân tích" trên một trace rồi đặt câu hỏi. Khi trace là một đơn hàng hoặc giỏ hàng, câu trả lời mở đầu bằng mục "Đơn hàng": mua gì, số lượng, đơn giá, khuyến mãi, tổng tiền. Bản macOS hiện thông báo khi AI trả lời xong (cần cho phép thông báo của Graylog trong System Settings); bản chạy trong trình duyệt báo bằng thông báo của trình duyệt nếu được cho phép. Nội dung log được gửi lên nhà cung cấp AI đang chọn; số điện thoại, CCCD và các dữ liệu tương tự được che trước khi gửi.
 
 Khi hỏi tiếp trong hội thoại, có thể đính kèm hình hoặc file: bấm 📎, dán hình (Cmd/Ctrl+V) hoặc kéo thả vào ô nhập. Tối đa 5 file mỗi câu, mỗi file 10 MB. File đính kèm được gửi nguyên vẹn lên AI, không che dữ liệu, và được lưu trong `~/.config/gl/ask/att/` cho tới khi hội thoại hết hạn 30 ngày.
 
