@@ -13,7 +13,7 @@ if WIN and os.path.basename(PY).lower() == 'pythonw.exe': PY = os.path.join(os.p
 # mọi việc thật do gl.py nằm cạnh file này làm (tham số đầu của dòng lệnh là đường dẫn gl cũ, không còn dùng)
 GL = [PY] + (['-X', 'utf8'] if WIN else []) + [os.path.join(os.path.dirname(os.path.abspath(__file__)), 'gl.py')]
 NOWIN = {'creationflags': 0x08000000} if WIN else {}   # không nháy cửa sổ đen trên Windows
-VERSION = '1.1.3'   # số phiên bản duy nhất: pyproject đọc dòng này; ra bản mới = sửa số ở đây rồi tạo release v<số> trên GitHub
+VERSION = '1.1.4'   # số phiên bản duy nhất: pyproject đọc dòng này; ra bản mới = sửa số ở đây rồi tạo release v<số> trên GitHub
 CONF = os.path.expanduser('~/.config/gl')
 SEP = '   —   '
 SECS = {'15 phút': 900, '1 giờ': 3600, '2 giờ': 7200, '6 giờ': 21600, '24 giờ': 86400, '7 ngày': 604800}

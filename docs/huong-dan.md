@@ -9,6 +9,8 @@
 - Nút mũi tên: mở Graylog của đối tác trong Chrome. Trên macOS tool tự điền đăng nhập; trên Windows mật khẩu được copy vào clipboard và tự xoá sau 45 giây.
 - Nút `…`: sửa hoặc xoá đối tác. Trong form sửa, biểu tượng con mắt hiện mật khẩu đã lưu.
 
+Bản macOS mở được nhiều đối tác cùng lúc bằng tab: dải tab nằm trên cùng cửa sổ, tên tab là tên đối tác đang mở trong tab đó, tab đang xem được tô màu. Nút "＋ Mở thêm đối tác" ở cuối dải tab (hoặc Cmd+T) mở tab mới; Cmd+Shift+] và Cmd+Shift+[ chuyển tab; Cmd+W hoặc nút ✕ đóng tab. Cmd+N mở cửa sổ riêng.
+
 ## 2. Tìm log
 
 ![Tìm log](img/tim-log.png)
